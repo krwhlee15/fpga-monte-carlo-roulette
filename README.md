@@ -63,6 +63,16 @@ Comparing these two profiles reveals how workload characteristics affect pipelin
 
 ---
 
+## Comparison Methodology
+
+The FPGA pipeline model and the CPU baselines measure performance in fundamentally different ways. The CPU baselines (serial Python and NumPy) measure actual wall-clock execution time on real hardware. The FPGA model, on the other hand, produces a predicted throughput: the discrete-event simulation determines how many clock cycles the pipeline would require, and we convert that to time using an assumed clock frequency (e.g., 200 MHz for a mid-range FPGA).
+
+This means the "speedup" metric compares a model prediction against an empirical measurement. This approach is standard in FPGA acceleration research (see Related Work), since building and benchmarking real FPGA hardware is outside the scope of this project. The credibility of the prediction depends on how realistically the DES models hardware constraints. A naive formula like `throughput = clock_freq * n_lanes` would trivially predict linear scaling. Our DES captures shared resource contention (memory bus queueing, reducer saturation, LFSR reseeding stalls) that reduce throughput below the theoretical maximum, producing non-trivial scaling curves that depend on both hardware configuration and workload profile.
+
+The primary findings of this project are about relative scaling behavior: how throughput changes with lane count, where it saturates, and how workload characteristics (flat vs. martingale) interact with hardware bottlenecks. The absolute speedup numbers depend on the assumed clock frequency and should be interpreted as order-of-magnitude estimates rather than precise predictions.
+
+---
+
 ## Evaluation
 
 ### Metrics
