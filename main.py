@@ -108,7 +108,7 @@ def main():
             n_trials = 100_000
 
         print("=" * 60)
-        print("FPGA Monte Carlo Roulette - Benchmark Suite")
+        print(f"FPGA Monte Carlo Benchmark Suite ({args.workload})")
         print("=" * 60)
 
         results, cpu_results = run_benchmark(
@@ -117,12 +117,15 @@ def main():
             reducer_throughputs=reducer_throughputs,
             strategies=strategies,
             n_trials=n_trials,
+            workload=args.workload,
             output_dir=output_dir,
         )
 
         # Run a detailed single config for latency + convergence data
         print("\n" + "=" * 60)
-        print("Running detailed analysis (latency, convergence, chi-squared)...")
+        print("Running detailed FPGA roulette proxy analysis...")
+        if args.workload != "roulette":
+            print(f"Note: detailed FPGA analysis is still roulette-based proxy for workload={args.workload}")
         print("=" * 60)
 
         detail_config = SimConfig(
@@ -131,6 +134,7 @@ def main():
             memory_bus_ports=2,
             reducer_throughput=4,
             strategy="flat",
+            workload="roulette",
         )
         fpga_result = run_fpga_sim(detail_config)
 
@@ -141,6 +145,7 @@ def main():
             memory_bus_ports=2,
             reducer_throughput=4,
             strategy="flat",
+            workload="roulette",
         )
         conv_result = run_fpga_sim(convergence_config)
         # Generate outcome sequence from a fresh LFSR for convergence analysis

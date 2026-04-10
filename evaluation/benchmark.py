@@ -5,8 +5,11 @@ from dataclasses import replace
 
 from config import SimConfig
 from fpga_model.fpga_sim import run_fpga_sim
-from cpu_baseline.serial_sim import run_serial
-from cpu_baseline.numpy_sim import run_numpy
+# from cpu_baseline.serial_sim import run_serial
+# from cpu_baseline.numpy_sim import run_numpy
+
+from cpu_baseline.runner import run_cpu_serial, run_cpu_numpy
+
 
 
 def run_benchmark(
@@ -15,6 +18,7 @@ def run_benchmark(
     reducer_throughputs=None,
     strategies=None,
     n_trials=100_000,
+    workload="roulette",
     output_dir="results",
 ):
     """Run full parameter sweep and save results to CSV."""
@@ -29,33 +33,60 @@ def run_benchmark(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    base_config = SimConfig(n_trials=n_trials)
+    # Base config for CPU workload under test
+    base_config = SimConfig(
+        n_trials=n_trials,
+        workload=workload,
+    )
 
     # Run CPU baselines once per strategy
     cpu_results = {}
     for strategy in strategies:
         cfg = replace(base_config, strategy=strategy)
-        serial = run_serial(cfg)
-        numpy_res = run_numpy(cfg)
+        serial = run_cpu_serial(cfg)
+        numpy_res = run_cpu_numpy(cfg)
+        # cpu_results[strategy] = {
+        #     "serial_throughput": serial["throughput"],
+        #     "serial_elapsed": serial["elapsed_sec"],
+        #     "serial_win_rate": serial["win_rate"],
+        #     "numpy_throughput": numpy_res["throughput"],
+        #     "numpy_elapsed": numpy_res["elapsed_sec"],
+        #     "numpy_win_rate": numpy_res["win_rate"],
+        # }
+        # print(f"CPU baselines ({strategy}): serial={serial['throughput']:.0f} trials/s, "
+        #       f"numpy={numpy_res['throughput']:.0f} trials/s")
+
+        # updated for different workloads
         cpu_results[strategy] = {
-            "serial_throughput": serial["throughput"],
-            "serial_elapsed": serial["elapsed_sec"],
-            "serial_win_rate": serial["win_rate"],
-            "numpy_throughput": numpy_res["throughput"],
-            "numpy_elapsed": numpy_res["elapsed_sec"],
-            "numpy_win_rate": numpy_res["win_rate"],
+            "serial_throughput": serial.throughput_trials_per_sec,
+            "serial_elapsed": serial.elapsed_sec,
+            "serial_estimate": serial.estimate,
+            "serial_extra": serial.extra,
+            "numpy_throughput": numpy_res.throughput_trials_per_sec,
+            "numpy_elapsed": numpy_res.elapsed_sec,
+            "numpy_estimate": numpy_res.estimate,
+            "numpy_extra": numpy_res.extra,
         }
-        print(f"CPU baselines ({strategy}): serial={serial['throughput']:.0f} trials/s, "
-              f"numpy={numpy_res['throughput']:.0f} trials/s")
+
+        print(
+            f"CPU baselines ({workload}, {strategy}): "
+            f"serial={serial.throughput_trials_per_sec:.0f} trials/s, "
+            f"numpy={numpy_res.throughput_trials_per_sec:.0f} trials/s"
+        )
 
     # FPGA sweep
+    # FPGA config stays roulette for now
+    fpga_base_config = SimConfig(
+        n_trials=n_trials,
+        workload="roulette",
+    )
     results = []
     combos = list(itertools.product(lane_counts, bus_ports_list, reducer_throughputs, strategies))
     total = len(combos)
 
     for idx, (n_lanes, bus_ports, red_tput, strategy) in enumerate(combos):
         cfg = replace(
-            base_config,
+            fpga_base_config,
             n_lanes=n_lanes,
             memory_bus_ports=bus_ports,
             reducer_throughput=red_tput,
@@ -69,11 +100,14 @@ def run_benchmark(
         cpu = cpu_results[strategy]
 
         row = {
+            # "workload": workload,
+            # "fpga_proxy": workload != "roulette",
             "n_lanes": n_lanes,
             "bus_ports": bus_ports,
             "reducer_throughput": red_tput,
             "strategy": strategy,
             "n_trials": cfg.n_trials,
+
             "fpga_throughput": fpga["throughput"],
             "fpga_total_cycles": fpga["total_cycles"],
             "fpga_modeled_time_sec": fpga["modeled_time_sec"],
@@ -82,6 +116,7 @@ def run_benchmark(
             "bus_total_wait": fpga["bus_total_wait"],
             "reducer_utilization": fpga["reducer_utilization"],
             "reducer_total_wait": fpga["reducer_total_wait"],
+
             "serial_throughput": cpu["serial_throughput"],
             "numpy_throughput": cpu["numpy_throughput"],
             "speedup_vs_serial": fpga["throughput"] / cpu["serial_throughput"] if cpu["serial_throughput"] > 0 else 0,
