@@ -105,6 +105,15 @@ The primary findings of this project are about relative scaling behavior: how th
 | Trial count | 10K, 100K, 1M |
 | Betting strategy | Flat, Martingale |
 
+## Quick start
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # or .\.venv\Scripts\Activate.ps1 on Windows
+pip install -r requirements.txt
+python main.py --quick
+```
+
 ### Planned Figures
 
 1. Throughput vs. lane count (with ideal linear scaling reference)

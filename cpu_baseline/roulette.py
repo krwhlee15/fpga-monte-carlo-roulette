@@ -1,0 +1,85 @@
+import random
+import time
+import numpy as np
+from .common import BenchmarkResult
+
+def run_roulette_serial(config):
+    rng = random.Random(config.seed)
+    wins = 0
+    total_payout = 0.0
+    current_bet = config.base_bet
+
+    start = time.perf_counter()
+    for _ in range(config.n_trials):
+        outcome = rng.randrange(38)
+
+        if config.bet_type == "red_black":
+            win = outcome < 18
+            payout_win = current_bet
+        else:
+            win = (outcome == config.single_number_choice)
+            payout_win = current_bet * 35
+
+        if win:
+            wins += 1
+            total_payout += payout_win
+            if config.strategy == "martingale":
+                current_bet = config.base_bet
+        else:
+            total_payout -= current_bet
+            if config.strategy == "martingale":
+                current_bet *= 2
+
+    elapsed = time.perf_counter() - start
+    return BenchmarkResult(
+        workload=f"roulette_{config.strategy}",
+        mode="serial",
+        trials=config.n_trials,
+        elapsed_sec=elapsed,
+        throughput_trials_per_sec=config.n_trials / elapsed,
+        estimate=wins / config.n_trials,
+        extra={"wins": wins, "total_payout": total_payout}
+    )
+
+
+def run_roulette_numpy(config, batch_size=1_000_000):
+    rng = np.random.default_rng(config.seed)
+    start = time.perf_counter()
+
+    # martingale cannot be fully vectorized
+    if config.strategy == "martingale":
+        elapsed = time.perf_counter() - start
+        result = run_roulette_serial(config)
+        result.mode = "numpy_fallback"
+        return result
+
+    done = 0
+    wins = 0
+    total_payout = 0.0
+
+    while done < config.n_trials:
+        m = min(batch_size, config.n_trials - done)
+        outcomes = rng.integers(0, 38, size=m)
+
+        if config.bet_type == "red_black":
+            win_mask = outcomes < 18
+            win_payout = config.base_bet
+        else:
+            win_mask = (outcomes == config.single_number_choice)
+            win_payout = config.base_bet * 35
+
+        batch_wins = int(win_mask.sum())
+        wins += batch_wins
+        total_payout += batch_wins * win_payout - (m - batch_wins) * config.base_bet
+        done += m
+
+    elapsed = time.perf_counter() - start
+    return BenchmarkResult(
+        workload=f"roulette_{config.strategy}",
+        mode="numpy",
+        trials=config.n_trials,
+        elapsed_sec=elapsed,
+        throughput_trials_per_sec=config.n_trials / elapsed,
+        estimate=wins / config.n_trials,
+        extra={"wins": wins, "total_payout": total_payout}
+    )

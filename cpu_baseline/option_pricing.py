@@ -1,0 +1,69 @@
+import math
+import random
+import time
+import numpy as np
+from .common import BenchmarkResult
+
+def normal_cdf(x):
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+def black_scholes_call_price(S0, K, r, sigma, T):
+    d1 = (math.log(S0 / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    return S0 * normal_cdf(d1) - K * math.exp(-r * T) * normal_cdf(d2)
+
+def run_option_serial(config):
+    rng = random.Random(config.seed)
+    drift = (config.r - 0.5 * config.sigma * config.sigma) * config.T
+    diffusion = config.sigma * math.sqrt(config.T)
+    payoff_sum = 0.0
+
+    start = time.perf_counter()
+    for _ in range(config.n_trials):
+        z = rng.gauss(0.0, 1.0)
+        ST = config.S0 * math.exp(drift + diffusion * z)
+        payoff_sum += max(ST - config.K, 0.0)
+    elapsed = time.perf_counter() - start
+
+    estimate = math.exp(-config.r * config.T) * (payoff_sum / config.n_trials)
+    exact = black_scholes_call_price(config.S0, config.K, config.r, config.sigma, config.T)
+
+    return BenchmarkResult(
+        workload="european_call",
+        mode="serial",
+        trials=config.n_trials,
+        elapsed_sec=elapsed,
+        throughput_trials_per_sec=config.n_trials / elapsed,
+        estimate=estimate,
+        extra={"black_scholes_exact": exact, "absolute_error": abs(estimate - exact)}
+    )
+
+def run_option_numpy(config, batch_size=1_000_000):
+    rng = np.random.default_rng(config.seed)
+    drift = (config.r - 0.5 * config.sigma * config.sigma) * config.T
+    diffusion = config.sigma * math.sqrt(config.T)
+
+    payoff_sum = 0.0
+    done = 0
+
+    start = time.perf_counter()
+    while done < config.n_trials:
+        m = min(batch_size, config.n_trials - done)
+        z = rng.standard_normal(m)
+        ST = config.S0 * np.exp(drift + diffusion * z)
+        payoff_sum += np.maximum(ST - config.K, 0.0).sum()
+        done += m
+    elapsed = time.perf_counter() - start
+
+    estimate = math.exp(-config.r * config.T) * (payoff_sum / config.n_trials)
+    exact = black_scholes_call_price(config.S0, config.K, config.r, config.sigma, config.T)
+
+    return BenchmarkResult(
+        workload="european_call",
+        mode="numpy",
+        trials=config.n_trials,
+        elapsed_sec=elapsed,
+        throughput_trials_per_sec=config.n_trials / elapsed,
+        estimate=estimate,
+        extra={"black_scholes_exact": exact, "absolute_error": abs(estimate - exact)}
+    )
