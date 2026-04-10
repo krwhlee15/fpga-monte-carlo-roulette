@@ -112,6 +112,9 @@ python -m venv .venv
 source .venv/bin/activate   # or .\.venv\Scripts\Activate.ps1 on Windows
 pip install -r requirements.txt
 python main.py --quick
+python3 main.py --cpu-only --workload roulette --mode both --strategy flat
+python3 main.py --cpu-only --workload sine --mode both
+python3 main.py --cpu-only --workload option --mode both
 ```
 
 ### Planned Figures

@@ -1,10 +1,12 @@
 from dataclasses import dataclass
-
+import math
 
 @dataclass
 class SimConfig:
-    # Trial count
+    # Common
     n_trials: int = 100_000
+    seed: int = 42
+    workload: str = "roulette"   # "roulette", "sine", "option"
 
     # FPGA hardware parameters
     n_lanes: int = 8
@@ -19,13 +21,19 @@ class SimConfig:
     lfsr_reseed_latency: int = 3
 
     # Roulette parameters
-    bet_type: str = "red_black"  # "red_black" or "single_number"
-    single_number_choice: int = 17  # used when bet_type == "single_number"
-
-    # Betting strategy
-    strategy: str = "flat"  # "flat" or "martingale"
+    bet_type: str = "red_black"          # "red_black" or "single_number"
+    single_number_choice: int = 17
+    strategy: str = "flat"               # "flat" or "martingale"
     initial_bankroll: int = 1000
-    base_bet: int = 10
+    base_bet: float = 10.0
 
-    # Reproducibility
-    seed: int = 42
+    # Sine workload parameters
+    sine_a: float = 0.0
+    sine_b: float = math.pi
+
+    # Option pricing parameters
+    S0: float = 100.0
+    K: float = 100.0
+    r: float = 0.05
+    sigma: float = 0.2
+    T: float = 1.0
