@@ -10,7 +10,7 @@ class SimConfig:
 
     # FPGA hardware parameters
     n_lanes: int = 8
-    clock_freq_mhz: float = 200.0
+    clock_freq_mhz: float = 100.0
     pipeline_depth: int = 4
     memory_bus_ports: int = 2
     reducer_throughput: int = 4

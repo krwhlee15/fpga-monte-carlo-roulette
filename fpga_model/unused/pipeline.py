@@ -1,3 +1,5 @@
+# UNUSED
+# --------------
 from fpga_model.lfsr import map_outcome, evaluate_bet
 
 

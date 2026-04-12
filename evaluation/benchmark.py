@@ -5,9 +5,6 @@ from dataclasses import replace
 
 from config import SimConfig
 from fpga_model.fpga_sim import run_fpga_sim
-# from cpu_baseline.serial_sim import run_serial
-# from cpu_baseline.numpy_sim import run_numpy
-
 from cpu_baseline.runner import run_cpu_serial, run_cpu_numpy
 
 
@@ -30,6 +27,8 @@ def run_benchmark(
         reducer_throughputs = [1, 2, 4, 8]
     if strategies is None:
         strategies = ["flat", "martingale"]
+    if workload != "roulette":
+        strategies = ["flat"]
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -45,18 +44,6 @@ def run_benchmark(
         cfg = replace(base_config, strategy=strategy)
         serial = run_cpu_serial(cfg)
         numpy_res = run_cpu_numpy(cfg)
-        # cpu_results[strategy] = {
-        #     "serial_throughput": serial["throughput"],
-        #     "serial_elapsed": serial["elapsed_sec"],
-        #     "serial_win_rate": serial["win_rate"],
-        #     "numpy_throughput": numpy_res["throughput"],
-        #     "numpy_elapsed": numpy_res["elapsed_sec"],
-        #     "numpy_win_rate": numpy_res["win_rate"],
-        # }
-        # print(f"CPU baselines ({strategy}): serial={serial['throughput']:.0f} trials/s, "
-        #       f"numpy={numpy_res['throughput']:.0f} trials/s")
-
-        # updated for different workloads
         cpu_results[strategy] = {
             "serial_throughput": serial.throughput_trials_per_sec,
             "serial_elapsed": serial.elapsed_sec,
@@ -75,10 +62,9 @@ def run_benchmark(
         )
 
     # FPGA sweep
-    # FPGA config stays roulette for now
     fpga_base_config = SimConfig(
         n_trials=n_trials,
-        workload="roulette",
+        workload=workload,
     )
     results = []
     combos = list(itertools.product(lane_counts, bus_ports_list, reducer_throughputs, strategies))
@@ -100,28 +86,42 @@ def run_benchmark(
         cpu = cpu_results[strategy]
 
         row = {
-            # "workload": workload,
-            # "fpga_proxy": workload != "roulette",
+            "workload": workload,
             "n_lanes": n_lanes,
             "bus_ports": bus_ports,
             "reducer_throughput": red_tput,
             "strategy": strategy,
             "n_trials": cfg.n_trials,
+            "feasible": float(fpga["feasible"]),
+            "contention_rate": fpga["contention_rate"],
 
             "fpga_throughput": fpga["throughput"],
             "fpga_total_cycles": fpga["total_cycles"],
             "fpga_modeled_time_sec": fpga["modeled_time_sec"],
-            "fpga_win_rate": fpga["win_rate"],
+            "fpga_effective_clock_mhz": fpga["clock_mhz"],
+            "fpga_fmax_mhz": fpga["fmax_mhz"],
+            "fpga_estimate": fpga["estimate"],
+            "fpga_ground_truth": fpga["ground_truth"] if fpga["ground_truth"] is not None else "",
+            "fpga_absolute_error": fpga.get("absolute_error", ""),
+            "fpga_mean_latency_cycles": fpga["mean_latency_cycles"],
+            "fpga_max_latency_cycles": fpga["max_latency_cycles"],
             "bus_utilization": fpga["bus_utilization"],
             "bus_total_wait": fpga["bus_total_wait"],
+            "buffer_total_wait": fpga["buffer_wait_cycles"],
             "reducer_utilization": fpga["reducer_utilization"],
             "reducer_total_wait": fpga["reducer_total_wait"],
+            "rng_utilization": fpga["stage_utilization"]["rng"],
+            "map_utilization": fpga["stage_utilization"]["map"],
+            "eval_utilization": fpga["stage_utilization"]["eval"],
+            "update_utilization": fpga["stage_utilization"]["update"],
 
             "serial_throughput": cpu["serial_throughput"],
             "numpy_throughput": cpu["numpy_throughput"],
             "speedup_vs_serial": fpga["throughput"] / cpu["serial_throughput"] if cpu["serial_throughput"] > 0 else 0,
             "speedup_vs_numpy": fpga["throughput"] / cpu["numpy_throughput"] if cpu["numpy_throughput"] > 0 else 0,
         }
+        if workload == "roulette":
+            row["fpga_win_rate"] = fpga["win_rate"]
         results.append(row)
         print(f"throughput={fpga['throughput']:.2e}, speedup_serial={row['speedup_vs_serial']:.1f}x")
 

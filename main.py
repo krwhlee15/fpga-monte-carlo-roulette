@@ -4,9 +4,8 @@ import numpy as np
 
 from config import SimConfig
 from fpga_model.fpga_sim import run_fpga_sim
-from fpga_model.lfsr import LFSR
 from evaluation.benchmark import run_benchmark
-from evaluation.analysis import convergence_analysis, lfsr_chi_squared, run_convergence_study
+from evaluation.analysis import convergence_analysis, lfsr_chi_squared
 from evaluation.plots import generate_all_plots, plot_latency_histogram, plot_outcome_histogram, plot_convergence
 
 from cpu_baseline.runner import run_cpu_serial, run_cpu_numpy
@@ -98,14 +97,14 @@ def main():
             lane_counts = [1, 4, 16]
             bus_ports_list = [2]
             reducer_throughputs = [2, 4]
-            strategies = ["flat", "martingale"]
+            strategies = ["flat", "martingale"] if args.workload == "roulette" else ["flat"]
             n_trials = 10_000
         else:
-            lane_counts = [1, 2, 4, 8, 16, 32, 64]
+            lane_counts = [1, 4, 8, 16, 32]
             bus_ports_list = [1, 2, 4]
             reducer_throughputs = [1, 2, 4, 8]
-            strategies = ["flat", "martingale"]
-            n_trials = 100_000
+            strategies = ["flat", "martingale"] if args.workload == "roulette" else ["flat"]
+            n_trials = 1_000_000
 
         print("=" * 60)
         print(f"FPGA Monte Carlo Benchmark Suite ({args.workload})")
@@ -123,9 +122,7 @@ def main():
 
         # Run a detailed single config for latency + convergence data
         print("\n" + "=" * 60)
-        print("Running detailed FPGA roulette proxy analysis...")
-        if args.workload != "roulette":
-            print(f"Note: detailed FPGA analysis is still roulette-based proxy for workload={args.workload}")
+        print(f"Running detailed FPGA analysis for workload={args.workload}...")
         print("=" * 60)
 
         detail_config = SimConfig(
@@ -134,35 +131,38 @@ def main():
             memory_bus_ports=2,
             reducer_throughput=4,
             strategy="flat",
-            workload="roulette",
+            workload=args.workload,
         )
         fpga_result = run_fpga_sim(detail_config)
 
-        # Convergence: need per-trial outcomes. Run a single-lane sim to get ordered outcomes.
-        convergence_config = SimConfig(
-            n_trials=min(n_trials, 50_000),
-            n_lanes=1,
-            memory_bus_ports=2,
-            reducer_throughput=4,
-            strategy="flat",
-            workload="roulette",
-        )
-        conv_result = run_fpga_sim(convergence_config)
-        # Generate outcome sequence from a fresh LFSR for convergence analysis
-        lfsr = LFSR(seed=convergence_config.seed + 1)
-        outcomes_seq = np.array([lfsr.step() % 38 for _ in range(convergence_config.n_trials)])
-        conv_data = convergence_analysis(outcomes_seq, bet_type=convergence_config.bet_type)
+        conv_data = None
+        if args.workload == "roulette":
+            convergence_config = SimConfig(
+                n_trials=min(n_trials, 50_000),
+                n_lanes=1,
+                memory_bus_ports=2,
+                reducer_throughput=4,
+                strategy="flat",
+                workload="roulette",
+            )
+            conv_result = run_fpga_sim(convergence_config)
+            outcomes_seq = np.array(conv_result["ordered_outcomes"])
+            conv_data = convergence_analysis(outcomes_seq, bet_type=convergence_config.bet_type)
 
-        # Chi-squared test
-        chi2, p_val = lfsr_chi_squared(fpga_result["outcome_histogram"])
-        print(f"LFSR chi-squared test: chi2={chi2:.2f}, p-value={p_val:.4f}")
-        if p_val > 0.05:
-            print("  -> PASS: outcome distribution is consistent with uniform (p > 0.05)")
+            chi2, p_val = lfsr_chi_squared(np.array(fpga_result["outcome_histogram"]))
+            print(f"LFSR chi-squared test: chi2={chi2:.2f}, p-value={p_val:.4f}")
+            if p_val > 0.05:
+                print("  -> PASS: outcome distribution is consistent with uniform (p > 0.05)")
+            else:
+                print("  -> FAIL: outcome distribution deviates from uniform (p <= 0.05)")
+
+            print(f"Win rate (8 lanes, flat): {fpga_result['win_rate']:.4f} "
+                  f"(theoretical: {18/38:.4f})")
         else:
-            print("  -> FAIL: outcome distribution deviates from uniform (p <= 0.05)")
-
-        print(f"Win rate (8 lanes, flat): {fpga_result['win_rate']:.4f} "
-              f"(theoretical: {18/38:.4f})")
+            truth = fpga_result.get("ground_truth")
+            err = fpga_result.get("absolute_error")
+            if truth is not None and err is not None:
+                print(f"Estimate={fpga_result['estimate']:.6f}, truth={truth:.6f}, abs_error={err:.6f}")
 
     else:
         fpga_result = None

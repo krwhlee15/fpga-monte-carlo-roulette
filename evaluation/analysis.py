@@ -88,6 +88,7 @@ def run_convergence_study(config, n_seeds=5):
             n_trials=config.n_trials,
             n_lanes=config.n_lanes,
             clock_freq_mhz=config.clock_freq_mhz,
+            workload=config.workload,
             memory_bus_ports=config.memory_bus_ports,
             reducer_throughput=config.reducer_throughput,
             strategy=config.strategy,
@@ -100,6 +101,13 @@ def run_convergence_study(config, n_seeds=5):
             initial_bankroll=config.initial_bankroll,
             base_bet=config.base_bet,
             single_number_choice=config.single_number_choice,
+            sine_a=config.sine_a,
+            sine_b=config.sine_b,
+            S0=config.S0,
+            K=config.K,
+            r=config.r,
+            sigma=config.sigma,
+            T=config.T,
         )
         result = run_fpga_sim(cfg)
         throughputs.append(result["throughput"])

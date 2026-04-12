@@ -12,11 +12,11 @@ def load_results(csv_path):
         reader = csv.DictReader(f)
         rows = []
         for row in reader:
-            # Convert numeric fields
             for key in row:
-                if key == "strategy":
-                    continue
-                row[key] = float(row[key])
+                try:
+                    row[key] = float(row[key])
+                except (TypeError, ValueError):
+                    pass
             rows.append(row)
     return rows
 
@@ -32,22 +32,23 @@ def filter_rows(rows, **kwargs):
 def plot_throughput_vs_lanes(rows, output_dir, bus_ports=2, reducer_tput=4):
     """Plot 1: Throughput vs lane count for both strategies."""
     fig, ax = plt.subplots(figsize=(8, 5))
+    strategies = sorted({row["strategy"] for row in rows if "strategy" in row})
 
-    for strategy in ["flat", "martingale"]:
+    for strategy in strategies:
         subset = filter_rows(rows, strategy=strategy, bus_ports=bus_ports, reducer_throughput=reducer_tput)
         subset.sort(key=lambda r: r["n_lanes"])
+        if not subset:
+            continue
         lanes = [r["n_lanes"] for r in subset]
         tputs = [r["fpga_throughput"] for r in subset]
         ax.plot(lanes, tputs, "o-", label=f"{strategy}")
 
     # Ideal linear reference
-    if len(subset) > 0:
-        base_subset = filter_rows(rows, strategy="flat", bus_ports=bus_ports,
-                                  reducer_throughput=reducer_tput, n_lanes=1.0)
+    if rows:
+        base_subset = filter_rows(rows, strategy="flat", bus_ports=bus_ports, reducer_throughput=reducer_tput, n_lanes=1.0)
         if base_subset:
             base_tput = base_subset[0]["fpga_throughput"]
-            lanes_ref = [r["n_lanes"] for r in filter_rows(rows, strategy="flat",
-                         bus_ports=bus_ports, reducer_throughput=reducer_tput)]
+            lanes_ref = [r["n_lanes"] for r in filter_rows(rows, strategy="flat", bus_ports=bus_ports, reducer_throughput=reducer_tput)]
             lanes_ref.sort()
             ax.plot(lanes_ref, [base_tput * l for l in lanes_ref], "--", color="gray",
                     alpha=0.5, label="Ideal linear")
@@ -66,10 +67,13 @@ def plot_throughput_vs_lanes(rows, output_dir, bus_ports=2, reducer_tput=4):
 def plot_speedup_vs_lanes(rows, output_dir, bus_ports=2, reducer_tput=4):
     """Plot 2: Speedup vs lane count relative to CPU baselines."""
     fig, ax = plt.subplots(figsize=(8, 5))
+    strategies = sorted({row["strategy"] for row in rows if "strategy" in row})
 
-    for strategy in ["flat", "martingale"]:
+    for strategy in strategies:
         subset = filter_rows(rows, strategy=strategy, bus_ports=bus_ports, reducer_throughput=reducer_tput)
         subset.sort(key=lambda r: r["n_lanes"])
+        if not subset:
+            continue
         lanes = [r["n_lanes"] for r in subset]
         speedup_serial = [r["speedup_vs_serial"] for r in subset]
         speedup_numpy = [r["speedup_vs_numpy"] for r in subset]
@@ -90,6 +94,7 @@ def plot_speedup_vs_lanes(rows, output_dir, bus_ports=2, reducer_tput=4):
 def plot_bus_utilization(rows, output_dir, reducer_tput=4, strategy="flat"):
     """Plot 3: Memory bus utilization vs lane count for different bus port configs."""
     fig, ax = plt.subplots(figsize=(8, 5))
+    plotted = False
 
     for bp in [1, 2, 4]:
         subset = filter_rows(rows, strategy=strategy, bus_ports=bp, reducer_throughput=reducer_tput)
@@ -99,6 +104,11 @@ def plot_bus_utilization(rows, output_dir, reducer_tput=4, strategy="flat"):
         lanes = [r["n_lanes"] for r in subset]
         util = [r["bus_utilization"] for r in subset]
         ax.plot(lanes, util, "o-", label=f"bus_ports={int(bp)}")
+        plotted = True
+
+    if not plotted:
+        plt.close(fig)
+        return
 
     ax.set_xlabel("Number of Lanes")
     ax.set_ylabel("Bus Utilization")
@@ -107,13 +117,14 @@ def plot_bus_utilization(rows, output_dir, reducer_tput=4, strategy="flat"):
     ax.set_xscale("log", base=2)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, "bus_utilization.png"), dpi=150)
+    fig.savefig(os.path.join(output_dir, f"bus_utilization_{strategy}.png"), dpi=150)
     plt.close(fig)
 
 
 def plot_reducer_saturation(rows, output_dir, bus_ports=2, strategy="flat"):
     """Plot 4: Throughput vs lane count for different reducer capacities."""
     fig, ax = plt.subplots(figsize=(8, 5))
+    plotted = False
 
     for rt in [1, 2, 4, 8]:
         subset = filter_rows(rows, strategy=strategy, bus_ports=bus_ports, reducer_throughput=rt)
@@ -123,6 +134,11 @@ def plot_reducer_saturation(rows, output_dir, bus_ports=2, strategy="flat"):
         lanes = [r["n_lanes"] for r in subset]
         tputs = [r["fpga_throughput"] for r in subset]
         ax.plot(lanes, tputs, "o-", label=f"reducer_tput={int(rt)}")
+        plotted = True
+
+    if not plotted:
+        plt.close(fig)
+        return
 
     ax.set_xlabel("Number of Lanes")
     ax.set_ylabel("Throughput (trials/sec)")
@@ -131,17 +147,26 @@ def plot_reducer_saturation(rows, output_dir, bus_ports=2, strategy="flat"):
     ax.set_xscale("log", base=2)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, "reducer_saturation.png"), dpi=150)
+    fig.savefig(os.path.join(output_dir, f"reducer_saturation_{strategy}.png"), dpi=150)
     plt.close(fig)
 
 
 def plot_utilization_heatmap(rows, output_dir, bus_ports=2, reducer_tput=4):
     """Plot 5: Heatmap of bus and reducer utilization across lanes and strategies."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    strategies = sorted({row["strategy"] for row in rows if "strategy" in row})
+    if not strategies:
+        return
 
-    for ax, strategy in zip(axes, ["flat", "martingale"]):
+    fig, axes = plt.subplots(1, len(strategies), figsize=(6 * len(strategies), 5))
+    if len(strategies) == 1:
+        axes = [axes]
+
+    im = None
+    for ax, strategy in zip(axes, strategies):
         subset = filter_rows(rows, strategy=strategy, bus_ports=bus_ports, reducer_throughput=reducer_tput)
         subset.sort(key=lambda r: r["n_lanes"])
+        if not subset:
+            continue
         lanes = [int(r["n_lanes"]) for r in subset]
         bus_util = [r["bus_utilization"] for r in subset]
         red_util = [r["reducer_utilization"] for r in subset]
@@ -159,8 +184,8 @@ def plot_utilization_heatmap(rows, output_dir, bus_ports=2, reducer_tput=4):
             for j in range(data.shape[1]):
                 ax.text(j, i, f"{data[i, j]:.2f}", ha="center", va="center", fontsize=8)
 
-    fig.colorbar(im, ax=axes, shrink=0.8, label="Utilization")
-    fig.tight_layout()
+    if im is not None:
+        fig.colorbar(im, ax=axes, shrink=0.8, label="Utilization")
     fig.savefig(os.path.join(output_dir, "utilization_heatmap.png"), dpi=150)
     plt.close(fig)
 
@@ -261,6 +286,8 @@ def generate_all_plots(csv_path, output_dir, fpga_result=None, convergence_data=
     """Generate all plots from benchmark CSV and optional detailed run data."""
     os.makedirs(output_dir, exist_ok=True)
     rows = load_results(csv_path)
+    if not rows:
+        return
 
     print("Generating plots...")
     plot_throughput_vs_lanes(rows, output_dir)
@@ -273,7 +300,8 @@ def generate_all_plots(csv_path, output_dir, fpga_result=None, convergence_data=
     if fpga_result is not None:
         plot_latency_histogram(fpga_result["lane_latencies"], output_dir,
                                title_suffix=f" (L={fpga_result['n_lanes']}, {fpga_result['strategy']})")
-        plot_outcome_histogram(fpga_result["outcome_histogram"], output_dir)
+        if "outcome_histogram" in fpga_result:
+            plot_outcome_histogram(fpga_result["outcome_histogram"], output_dir)
 
     if convergence_data is not None:
         plot_convergence(
