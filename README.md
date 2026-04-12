@@ -108,13 +108,28 @@ The primary findings of this project are about relative scaling behavior: how th
 ## Quick start
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # or .\.venv\Scripts\Activate.ps1 on Windows
+python -m venv venv
+source venv/bin/activate   # or .\venv\Scripts\Activate.ps1 on Windows
 pip install -r requirements.txt
-python main.py --quick
-python3 main.py --cpu-only --workload roulette --mode both --strategy flat
-python3 main.py --cpu-only --workload sine --mode both
-python3 main.py --cpu-only --workload option --mode both
+pytest -q
+
+# Quick FPGA benchmark runs with CSV + plots
+python main.py --quick --workload roulette --output-dir results/roulette_quick
+python main.py --quick --workload sine --output-dir results/sine_quick
+python main.py --quick --workload option --output-dir results/option_quick
+
+# CPU-only baselines
+python main.py --cpu-only --workload roulette --mode both --strategy flat
+python main.py --cpu-only --workload sine --mode both
+python main.py --cpu-only --workload option --mode both
+
+# Full FPGA sweeps
+python main.py --workload roulette --output-dir results/roulette_full
+python main.py --workload sine --output-dir results/sine_full
+python main.py --workload option --output-dir results/option_full
+
+# Re-generate plots from an existing benchmark CSV
+python main.py --plot-only --output-dir results/roulette_quick
 ```
 
 ### Planned Figures
