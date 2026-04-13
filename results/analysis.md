@@ -34,7 +34,7 @@ The following results use the default resource configuration (bus_ports=2, reduc
 
 ### Roulette (flat)
 
-| Lanes | Throughput | vs Serial | vs NumPy | Contention Rate |
+| Lanes | Throughput (trials/s) | vs Serial | vs NumPy | Contention Rate |
 |---|---|---|---|---|
 | 1 | 16.7M | 3.4x | 0.2x | 0.00 |
 | 4 | 66.7M | 13.5x | 0.9x | 0.00 |
@@ -46,7 +46,7 @@ Scaling is perfectly linear through 8 lanes with zero contention. At 16 lanes, t
 
 ### Sine Integral
 
-| Lanes | Throughput | vs Serial | vs NumPy | Contention Rate |
+| Lanes | Throughput (trials/s) | vs Serial | vs NumPy | Contention Rate |
 |---|---|---|---|---|
 | 1 | 14.3M | 1.2x | 0.2x | 0.00 |
 | 4 | 57.1M | 5.0x | 0.7x | 0.00 |
@@ -58,7 +58,7 @@ Sine integral follows a similar scaling pattern. It runs contention-free through
 
 ### Option Pricing
 
-| Lanes | Throughput | vs Serial | vs NumPy | Contention Rate |
+| Lanes | Throughput (trials/s) | vs Serial | vs NumPy | Contention Rate |
 |---|---|---|---|---|
 | 1 | 10.0M | 3.1x | 0.2x | 0.00 |
 | 4 | 40.0M | 12.5x | 1.0x | 0.00 |
@@ -74,7 +74,7 @@ Option pricing has the slowest single-lane throughput due to its 10-cycle pipeli
 
 The Martingale strategy requires an additional bus access per trial for updating the bet amount, doubling the bus demand compared to flat betting.
 
-| Strategy | L=1 | L=4 | L=8 | L=16 | L=32 |
+| Strategy | L=1 (trials/s) | L=4 (trials/s) | L=8 (trials/s) | L=16 (trials/s) | L=32 (trials/s) |
 |---|---|---|---|---|---|
 | Flat | 16.7M | 66.7M | 133.0M | 200.0M | 200.0M |
 | Martingale | 14.3M | 57.1M | 66.7M | 66.7M | 66.7M |
@@ -85,7 +85,7 @@ Martingale throughput saturates at L=8 (66.7M) and stays pinned there, while fla
 
 Increasing bus ports directly alleviates contention. For roulette Martingale at L=8:
 
-| Bus Ports | Throughput | Bus Utilization |
+| Bus Ports | Throughput (trials/s) | Bus Utilization |
 |---|---|---|
 | 1 | 33.3M | 66.7% |
 | 2 | 66.7M | 66.7% |
@@ -97,7 +97,7 @@ Each doubling of bus ports roughly doubles throughput until bus utilization drop
 
 For workloads without bus access (sine, option), the reducer is the only shared resource. The sine integral at 100 MHz with bus_ports=2 demonstrates this:
 
-| Reducer Throughput | L=4 | L=8 | L=16 |
+| Reducer Throughput | L=4 (trials/s) | L=8 (trials/s) | L=16 (trials/s) |
 |---|---|---|---|
 | 1 | 57.1M | 100.0M | 100.0M |
 | 2 | 57.1M | 114.0M | 200.0M |
