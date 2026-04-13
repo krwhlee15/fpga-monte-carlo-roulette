@@ -250,6 +250,7 @@ def plot_convergence(n_values, win_rates, ci_lower, ci_upper, output_dir, bet_ty
 
 def plot_outcome_histogram(histogram, output_dir):
     """Plot 8: Outcome histogram with chi-squared annotation."""
+    histogram = np.asarray(histogram)
     fig, ax = plt.subplots(figsize=(10, 5))
 
     labels = [str(i) for i in range(37)] + ["00"]
@@ -282,6 +283,64 @@ def plot_outcome_histogram(histogram, output_dir):
     plt.close(fig)
 
 
+def plot_convergence_generic(conv_data, output_dir, workload):
+    """Convergence plot for any workload with CI bands."""
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    n_values = conv_data["n_values"]
+    estimates = conv_data["estimates"]
+    ci_lower = conv_data["ci_lower"]
+    ci_upper = conv_data["ci_upper"]
+    truth = conv_data["ground_truth"]
+    label = conv_data["label"]
+
+    step = max(1, len(n_values) // 1000)
+    idx = slice(None, None, step)
+
+    ax.plot(n_values[idx], estimates[idx], linewidth=0.8, label=label)
+    ax.fill_between(n_values[idx], ci_lower[idx], ci_upper[idx], alpha=0.2, label="95% CI")
+    ax.axhline(truth, color="red", linestyle="--", alpha=0.7,
+               label=f"Truth={truth:.4f}")
+
+    ax.set_xlabel("Number of Trials")
+    ax.set_ylabel(label)
+    ax.set_title(f"Convergence Analysis ({workload})")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(os.path.join(output_dir, f"convergence_{workload}.png"), dpi=150)
+    plt.close(fig)
+
+
+def plot_clock_freq_sensitivity(rows, output_dir, bus_ports=2, reducer_tput=4, strategy="flat"):
+    """Throughput vs lane count at different clock frequencies."""
+    freqs = sorted(set(r.get("clock_freq_mhz", 100.0) for r in rows))
+    if len(freqs) <= 1:
+        return
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for freq in freqs:
+        subset = filter_rows(rows, bus_ports=bus_ports, reducer_throughput=reducer_tput,
+                            strategy=strategy, clock_freq_mhz=freq)
+        subset.sort(key=lambda r: r["n_lanes"])
+        if not subset:
+            continue
+        lanes = [r["n_lanes"] for r in subset]
+        tputs = [r["fpga_throughput"] for r in subset]
+        ax.plot(lanes, tputs, "o-", label=f"{int(freq)} MHz")
+
+    ax.set_xlabel("Number of Lanes")
+    ax.set_ylabel("Throughput (trials/sec)")
+    ax.set_title("Clock Frequency Sensitivity")
+    ax.legend()
+    ax.set_xscale("log", base=2)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(os.path.join(output_dir, "clock_freq_sensitivity.png"), dpi=150)
+    plt.close(fig)
+
+
 def generate_all_plots(csv_path, output_dir, fpga_result=None, convergence_data=None):
     """Generate all plots from benchmark CSV and optional detailed run data."""
     os.makedirs(output_dir, exist_ok=True)
@@ -296,6 +355,7 @@ def generate_all_plots(csv_path, output_dir, fpga_result=None, convergence_data=
     plot_bus_utilization(rows, output_dir, strategy="martingale")
     plot_reducer_saturation(rows, output_dir)
     plot_utilization_heatmap(rows, output_dir)
+    plot_clock_freq_sensitivity(rows, output_dir)
 
     if fpga_result is not None:
         plot_latency_histogram(fpga_result["lane_latencies"], output_dir,
@@ -304,12 +364,13 @@ def generate_all_plots(csv_path, output_dir, fpga_result=None, convergence_data=
             plot_outcome_histogram(fpga_result["outcome_histogram"], output_dir)
 
     if convergence_data is not None:
-        plot_convergence(
-            convergence_data["n_values"],
-            convergence_data["win_rates"],
-            convergence_data["ci_lower"],
-            convergence_data["ci_upper"],
-            output_dir,
-        )
+        for wl, conv in convergence_data.items():
+            if wl == "roulette":
+                plot_convergence(
+                    conv["n_values"], conv["win_rates"],
+                    conv["ci_lower"], conv["ci_upper"], output_dir,
+                )
+            else:
+                plot_convergence_generic(conv, output_dir, wl)
 
     print(f"Plots saved to {output_dir}/")

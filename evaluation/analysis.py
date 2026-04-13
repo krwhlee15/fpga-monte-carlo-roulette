@@ -43,6 +43,64 @@ def convergence_analysis(outcome_histogram_running, bet_type="red_black"):
     }
 
 
+def convergence_analysis_sine(values, config):
+    """Running integral estimate convergence for sine workload."""
+    n = len(values)
+    assert n > 0
+    interval = config.sine_b - config.sine_a
+    cumsum = np.cumsum(values)
+    n_values = np.arange(1, n + 1)
+    estimates = interval * cumsum / n_values
+
+    z = 1.96
+    cumsum_sq = np.cumsum(values ** 2)
+    running_var = cumsum_sq / n_values - (cumsum / n_values) ** 2
+    running_var = np.maximum(running_var, 0)
+    se = interval * np.sqrt(running_var / n_values)
+
+    import math
+    ground_truth = -math.cos(config.sine_b) + math.cos(config.sine_a)
+
+    return {
+        "n_values": n_values,
+        "estimates": estimates,
+        "ci_lower": estimates - z * se,
+        "ci_upper": estimates + z * se,
+        "ground_truth": ground_truth,
+        "label": "Integral Estimate",
+    }
+
+
+def convergence_analysis_option(payoffs, config):
+    """Running option price convergence for stock pricing workload."""
+    import math
+    n = len(payoffs)
+    assert n > 0
+    discount = math.exp(-config.r * config.T)
+    cumsum = np.cumsum(payoffs)
+    n_values = np.arange(1, n + 1)
+    estimates = discount * cumsum / n_values
+
+    z = 1.96
+    cumsum_sq = np.cumsum(payoffs ** 2)
+    running_var = cumsum_sq / n_values - (cumsum / n_values) ** 2
+    running_var = np.maximum(running_var, 0)
+    se = discount * np.sqrt(running_var / n_values)
+
+    from fpga_model.workloads import get_workload_model
+    wl = get_workload_model(config)
+    ground_truth = wl.ground_truth(config)
+
+    return {
+        "n_values": n_values,
+        "estimates": estimates,
+        "ci_lower": estimates - z * se,
+        "ci_upper": estimates + z * se,
+        "ground_truth": ground_truth,
+        "label": "Option Price",
+    }
+
+
 def lfsr_chi_squared(histogram):
     """Chi-squared goodness-of-fit test for uniform distribution over 38 outcomes.
 
@@ -51,6 +109,7 @@ def lfsr_chi_squared(histogram):
 
     Returns (chi2_stat, p_value)
     """
+    histogram = np.asarray(histogram)
     assert len(histogram) == 38
     total = histogram.sum()
     assert total > 0

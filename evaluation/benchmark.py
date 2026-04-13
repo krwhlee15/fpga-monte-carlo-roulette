@@ -14,6 +14,7 @@ def run_benchmark(
     bus_ports_list=None,
     reducer_throughputs=None,
     strategies=None,
+    clock_freqs=None,
     n_trials=100_000,
     workload="roulette",
     output_dir="results",
@@ -27,6 +28,8 @@ def run_benchmark(
         reducer_throughputs = [1, 2, 4, 8]
     if strategies is None:
         strategies = ["flat", "martingale"]
+    if clock_freqs is None:
+        clock_freqs = [100.0]
     if workload != "roulette":
         strategies = ["flat"]
 
@@ -67,20 +70,21 @@ def run_benchmark(
         workload=workload,
     )
     results = []
-    combos = list(itertools.product(lane_counts, bus_ports_list, reducer_throughputs, strategies))
+    combos = list(itertools.product(lane_counts, bus_ports_list, reducer_throughputs, strategies, clock_freqs))
     total = len(combos)
 
-    for idx, (n_lanes, bus_ports, red_tput, strategy) in enumerate(combos):
+    for idx, (n_lanes, bus_ports, red_tput, strategy, clock_freq) in enumerate(combos):
         cfg = replace(
             fpga_base_config,
             n_lanes=n_lanes,
             memory_bus_ports=bus_ports,
             reducer_throughput=red_tput,
             strategy=strategy,
+            clock_freq_mhz=clock_freq,
         )
 
-        print(f"[{idx + 1}/{total}] lanes={n_lanes}, bus_ports={bus_ports}, "
-              f"reducer_tput={red_tput}, strategy={strategy}...", end=" ", flush=True)
+        print(f"[{idx + 1}/{total}] lanes={n_lanes}, bus={bus_ports}, "
+              f"red={red_tput}, strat={strategy}, freq={clock_freq}...", end=" ", flush=True)
 
         fpga = run_fpga_sim(cfg)
         cpu = cpu_results[strategy]
@@ -91,6 +95,7 @@ def run_benchmark(
             "bus_ports": bus_ports,
             "reducer_throughput": red_tput,
             "strategy": strategy,
+            "clock_freq_mhz": clock_freq,
             "n_trials": cfg.n_trials,
             "feasible": float(fpga["feasible"]),
             "contention_rate": fpga["contention_rate"],
