@@ -1,6 +1,6 @@
-# FPGA Monte Carlo Roulette Accelerator
+# FPGA Monte Carlo Workload Accelerator Simulator
 
-A discrete-event simulation of an FPGA-style parallel pipeline for Monte Carlo roulette, built in Python with SimPy. The FPGA pipeline model is the system under evaluation: we measure how throughput scales with lane count under realistic hardware contention, and compare against CPU baselines.
+A discrete-event simulation of an FPGA-style parallel pipeline for Monte Carlo workloads, built in Python. The FPGA model is the system under evaluation: we measure how throughput scales with lane count under realistic hardware contention, apply simple timing and resource-feasibility models, and compare against CPU baselines.
 
 Developed for **EECE5643 Simulation and Performance Evaluation** at Northeastern University (Spring 2026).
 
@@ -16,34 +16,42 @@ Monte Carlo simulations are embarrassingly parallel in theory, but real hardware
 
 ### FPGA Pipeline Model
 
-Each of **L** parallel lanes executes a 4-stage pipeline per roulette trial:
+Each of **L** parallel lanes executes a 4-stage pipeline per trial:
 
 ```
 Stage 1        Stage 2             Stage 3            Stage 4
-LFSR RNG  -->  Outcome Mapping -->  Bet Evaluation -->  Strategy Update
-(1 cycle)      (1 cycle)           (1 cycle + bus)     (1 cycle + bus)
+LFSR RNG  -->  Workload Mapping --> Evaluation -----> State Update
+(1 cycle)      (workload-specific)  (workload-specific) (workload-specific)
 ```
 
-After all four stages, the lane deposits its result into a shared **reduction tree**. All lanes share a **memory bus** with limited ports and a **reducer** with limited throughput. These shared resources create queueing and contention that the DES captures.
+After all four stages, the lane deposits its result into a shared reduction resource. All lanes share a memory bus with limited ports, a reducer with limited throughput, and a finite output buffer. These shared resources create queueing and contention that the simulator captures.
 
 **Contention sources modeled:**
 
 | Resource | Model | Effect |
 |----------|-------|--------|
-| Memory bus | SimPy Resource, limited ports | Lanes stall waiting for bus access during bet read / strategy write |
+| Memory bus | Shared resource with limited ports | Lanes stall waiting for read/write access |
 | Reduction tree | SimPy Resource, limited throughput | Lanes stall when reducer cannot absorb results fast enough |
 | LFSR reseeding | Periodic pipeline bubble | Dead cycles every N steps when LFSR state is refreshed |
 | Output buffer | Finite-depth buffer | Backpressure propagates when downstream consumer is slow |
 
-**Key parameters:** lane count, clock frequency, memory bus ports, reducer throughput, buffer depth, LFSR reseed interval and latency. All are configurable for parameter sweeps.
+Stage costs are workload-specific. Roulette uses a light 4 x 1-cycle pipeline, sine integration adds a heavier evaluation stage, and option pricing adds heavier mapping and evaluation stages through the timing model.
+
+The simulator also includes:
+
+- A workload abstraction layer for roulette, sine integration, and European option pricing
+- A simple timing model that caps effective clock frequency by workload and structural complexity
+- A simple resource model that marks oversized FPGA configurations infeasible
+
+**Key parameters:** lane count, requested clock frequency, memory bus ports, reducer throughput, buffer depth, LFSR reseed interval and latency. All are configurable for parameter sweeps.
 
 ### CPU Baselines
 
 Two CPU implementations serve as comparison points:
 
-**Serial Python** runs one trial per iteration in a standard loop using Python's `random` module. This represents the naive, unoptimized baseline.
+**Serial Python** runs one trial per iteration in a standard loop. This represents the naive, unoptimized baseline.
 
-**NumPy-vectorized** generates all random outcomes in a single batch and evaluates bets with vectorized operations. For state-dependent strategies like martingale, a sequential loop handles the round-by-round updates. This represents a realistic optimized CPU implementation.
+**NumPy-vectorized** batches the data path where possible and falls back to sequential logic when the workload is stateful. This represents a realistic optimized CPU implementation.
 
 ### LFSR Random Number Generator
 
@@ -51,23 +59,31 @@ Each lane has its own 32-bit Galois LFSR with a maximal-length feedback polynomi
 
 ---
 
-## Workload Profiles
+## Workloads
 
-We evaluate two betting strategies as distinct workload profiles, enabling workload characterization analysis:
+The project currently supports three workloads through a shared FPGA execution model:
+
+**Roulette** maps each random draw to one of 38 outcomes and evaluates either flat betting or martingale. This is the most contention-sensitive workload because state updates can require extra memory-bus traffic.
+
+**Sine integration** estimates the integral of `sin(x)` over a configurable interval. This workload uses the same lane/reduction structure but shifts more cost into the arithmetic stages.
+
+**European option pricing** estimates a Black-Scholes-style call option value using Monte Carlo sampling. This is the heaviest workload in the repository and is the main driver for timing and resource-feasibility limits.
+
+Within roulette, we evaluate two betting strategies as workload variants:
 
 **Flat betting** uses a constant bet size every round. The strategy update stage is essentially a no-op, so memory bus contention comes only from bet configuration reads. This produces uniform, predictable pipeline behavior.
 
 **Martingale** doubles the bet after each loss and resets after a win. This requires a read-modify-write to strategy state via the memory bus on every round. Losing streaks create bursts of heavy bus traffic. Pipeline throughput becomes outcome-dependent, creating variable-intensity workload behavior that interacts differently with hardware constraints.
 
-Comparing these two profiles reveals how workload characteristics affect pipeline utilization, bottleneck locations, and scaling behavior.
+Comparing these workloads and roulette strategies reveals how arithmetic intensity, statefulness, and shared-resource demand affect pipeline utilization, bottleneck locations, and scaling behavior.
 
 ---
 
 ## Comparison Methodology
 
-The FPGA pipeline model and the CPU baselines measure performance in fundamentally different ways. The CPU baselines (serial Python and NumPy) measure actual wall-clock execution time on real hardware. The FPGA model, on the other hand, produces a predicted throughput: the discrete-event simulation determines how many clock cycles the pipeline would require, and we convert that to time using an assumed clock frequency (e.g., 200 MHz for a mid-range FPGA).
+The FPGA model and the CPU baselines measure performance in fundamentally different ways. The CPU baselines measure actual wall-clock execution time on real hardware. The FPGA model produces a predicted throughput: the simulator determines how many clock cycles the pipeline would require, applies the effective clock from the timing model, and converts that to modeled time.
 
-This means the "speedup" metric compares a model prediction against an empirical measurement. This approach is standard in FPGA acceleration research (see Related Work), since building and benchmarking real FPGA hardware is outside the scope of this project. The credibility of the prediction depends on how realistically the DES models hardware constraints. A naive formula like `throughput = clock_freq * n_lanes` would trivially predict linear scaling. Our DES captures shared resource contention (memory bus queueing, reducer saturation, LFSR reseeding stalls) that reduce throughput below the theoretical maximum, producing non-trivial scaling curves that depend on both hardware configuration and workload profile.
+This means the "speedup" metric compares a model prediction against an empirical measurement. This approach is standard in FPGA acceleration research (see Related Work), since building and benchmarking real FPGA hardware is outside the scope of this project. The credibility of the prediction depends on how realistically the simulator models hardware constraints. A naive formula like `throughput = clock_freq * n_lanes` would trivially predict linear scaling. Our model captures shared-resource contention, workload-dependent stage costs, timing limits, and infeasible resource footprints, producing non-trivial scaling curves that depend on both hardware configuration and workload.
 
 The primary findings of this project are about relative scaling behavior: how throughput changes with lane count, where it saturates, and how workload characteristics (flat vs. martingale) interact with hardware bottlenecks. The absolute speedup numbers depend on the assumed clock frequency and should be interpreted as order-of-magnitude estimates rather than precise predictions.
 
@@ -102,8 +118,10 @@ The primary findings of this project are about relative scaling behavior: how th
 | Lane count | 1, 2, 4, 8, 16, 32, 64 |
 | Memory bus ports | 1, 2, 4 |
 | Reducer throughput | 1, 2, 4, 8 |
+| Requested clock frequency | 100, 200, 250 MHz |
 | Trial count | 10K, 100K, 1M |
-| Betting strategy | Flat, Martingale |
+| Workload | Roulette, sine, option pricing |
+| Roulette strategy | Flat, Martingale |
 
 ## Quick start
 
@@ -113,26 +131,24 @@ source venv/bin/activate   # or .\venv\Scripts\Activate.ps1 on Windows
 pip install -r requirements.txt
 pytest -q
 
-# Quick FPGA benchmark runs with CSV + plots
-python main.py --quick --workload roulette --output-dir results/roulette_quick
-python main.py --quick --workload sine --output-dir results/sine_quick
-python main.py --quick --workload option --output-dir results/option_quick
+# Quick benchmark sweep with CSV + plots
+# Note: for FPGA benchmark mode, main.py currently runs all workloads
+# and writes a combined benchmark_results.csv to the chosen output dir.
+python main.py --quick --output-dir results/quick
 
 # CPU-only baselines
 python main.py --cpu-only --workload roulette --mode both --strategy flat
 python main.py --cpu-only --workload sine --mode both
 python main.py --cpu-only --workload option --mode both
 
-# Full FPGA sweeps
-python main.py --workload roulette --output-dir results/roulette_full
-python main.py --workload sine --output-dir results/sine_full
-python main.py --workload option --output-dir results/option_full
+# Full FPGA sweep across all workloads
+python main.py --output-dir results/full
 
 # Re-generate plots from an existing benchmark CSV
-python main.py --plot-only --output-dir results/roulette_quick
+python main.py --plot-only --output-dir results/quick
 ```
 
-### Planned Figures
+### Output Artifacts
 
 1. Throughput vs. lane count (with ideal linear scaling reference)
 2. Speedup vs. lane count (relative to both CPU baselines)
@@ -141,7 +157,7 @@ python main.py --plot-only --output-dir results/roulette_quick
 5. Reducer saturation curve (throughput vs. lane count for different reducer capacities)
 6. Trial latency distribution (at selected lane counts)
 7. Convergence plot (running win-rate with confidence interval bands)
-8. Outcome histogram (38 bins, annotated with chi-squared p-value)
+8. Outcome histogram for roulette (38 bins, annotated with chi-squared p-value)
 
 ---
 
@@ -149,21 +165,43 @@ python main.py --plot-only --output-dir results/roulette_quick
 
 ```
 fpga-monte-carlo-roulette/
-├── config.py                  # Central parameter configuration
+├── config.py                        # Central simulation/workload configuration
+├── main.py                          # CLI entry point for benchmarks, plots, CPU-only runs
 ├── cpu_baseline/
-│   ├── serial_sim.py          # Serial Python roulette simulation
-│   └── numpy_sim.py           # NumPy-vectorized simulation
+│   ├── runner.py                    # Dispatches CPU baseline by workload
+│   ├── roulette.py                  # Roulette serial + NumPy baselines
+│   ├── sine.py                      # Sine serial + NumPy baselines
+│   └── option_pricing.py            # Option pricing serial + NumPy baselines
 ├── fpga_model/
-│   ├── lfsr.py                # 32-bit Galois LFSR RNG
-│   ├── pipeline.py            # Single lane: 4-stage pipeline (SimPy process)
-│   ├── memory_bus.py          # Shared memory bus (SimPy Resource)
-│   ├── reducer.py             # Reduction tree aggregator (SimPy Resource)
-│   └── fpga_sim.py            # Top-level DES orchestrator
+│   ├── __init__.py
+│   ├── fpga_sim.py                  # Top-level FPGA simulation orchestrator
+│   ├── lane.py                      # Per-lane state and scheduling
+│   ├── lfsr.py                      # 32-bit Galois LFSR RNG
+│   ├── metrics.py                   # Throughput, latency, and utilization accounting
+│   ├── resource_model.py            # Board-capacity feasibility model
+│   ├── shared_resources.py          # Bus/reducer/output-buffer models
+│   ├── timing_model.py              # Effective clock and per-stage cycle model
+│   └── workloads/                   # Workload-specific stage behavior and reductions
+│       ├── __init__.py
+│       ├── base.py                  # Shared workload interface
+│       ├── roulette.py              # Roulette workload stages and reductions
+│       ├── sine.py                  # Sine integration workload
+│       └── option_pricing.py        # Option pricing workload
 ├── evaluation/
-│   ├── benchmark.py           # Parameter sweep runner, metric collection
-│   ├── analysis.py            # Statistical tests (chi-squared, CI, convergence)
-│   └── plots.py               # Result visualization
-├── results/                   # Output plots and CSV data
+│   ├── __init__.py
+│   ├── analysis.py                  # Convergence and statistical validation
+│   ├── benchmark.py                 # Parameter sweep runner and CSV generation
+│   └── plots.py                     # Result visualization
+├── tests/                           # Regression tests for workloads and models
+│   ├── conftest.py
+│   ├── test_benchmark_outputs.py
+│   ├── test_fpga_option.py
+│   ├── test_fpga_roulette.py
+│   ├── test_fpga_sine.py
+│   ├── test_resource_model.py
+│   ├── test_shared_resources.py
+│   └── test_timing_model.py
+├── results/                         # Output plots, CSVs, and analysis notes
 ├── requirements.txt
 └── README.md
 ```
@@ -175,7 +213,6 @@ fpga-monte-carlo-roulette/
 | Tool | Purpose |
 |------|---------|
 | Python 3.10+ | Implementation language |
-| SimPy | Discrete-event simulation engine |
 | NumPy | Vectorized CPU baseline, numerical operations |
 | Matplotlib | Result visualization |
 | SciPy | Statistical tests (chi-squared, confidence intervals) |
