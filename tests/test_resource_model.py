@@ -6,6 +6,7 @@ from fpga_model.resource_model import config_is_feasible, estimate_resources
 
 class TestResourceModel(unittest.TestCase):
     def test_resource_usage_grows_with_heavier_workloads(self):
+        # Option pricing should cost more hardware than roulette at the same lane count.
         roulette = estimate_resources(SimConfig(workload="roulette", n_lanes=8))
         option = estimate_resources(SimConfig(workload="option", n_lanes=8))
 
@@ -14,6 +15,7 @@ class TestResourceModel(unittest.TestCase):
         self.assertGreater(option["ff"], roulette["ff"])
 
     def test_large_option_config_can_become_infeasible(self):
+        # Stress a large design point to verify the board-limit guard rails.
         infeasible_cfg = SimConfig(
             workload="option",
             n_lanes=64,

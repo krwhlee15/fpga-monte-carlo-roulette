@@ -19,6 +19,7 @@ def convergence_analysis(outcome_histogram_running, bet_type="red_black"):
     assert n > 0
 
     if bet_type == "red_black":
+        # Convert the ordered outcome stream into a running count of wins.
         wins_cumulative = np.cumsum(np.isin(outcome_histogram_running, list(RED_NUMBERS)))
     elif bet_type == "single_number":
         wins_cumulative = np.cumsum(outcome_histogram_running == 17)
@@ -28,7 +29,7 @@ def convergence_analysis(outcome_histogram_running, bet_type="red_black"):
     n_values = np.arange(1, n + 1)
     win_rates = wins_cumulative / n_values
 
-    # 95% CI using normal approximation for proportion
+    # Use the normal approximation to show how the empirical win rate stabilizes.
     z = 1.96
     se = np.sqrt(win_rates * (1 - win_rates) / n_values)
     # Avoid division by zero at n=0 (already asserted n>0, but first element could be edge case)
@@ -52,6 +53,7 @@ def convergence_analysis_sine(values, config):
     n_values = np.arange(1, n + 1)
     estimates = interval * cumsum / n_values
 
+    # Estimate the standard error from the running sample variance at each prefix length.
     z = 1.96
     cumsum_sq = np.cumsum(values ** 2)
     running_var = cumsum_sq / n_values - (cumsum / n_values) ** 2
@@ -81,6 +83,7 @@ def convergence_analysis_option(payoffs, config):
     n_values = np.arange(1, n + 1)
     estimates = discount * cumsum / n_values
 
+    # Confidence bands narrow as the discounted payoff average converges.
     z = 1.96
     cumsum_sq = np.cumsum(payoffs ** 2)
     running_var = cumsum_sq / n_values - (cumsum / n_values) ** 2
@@ -143,6 +146,7 @@ def run_convergence_study(config, n_seeds=5):
     first_histogram = None
 
     for seed_offset in range(n_seeds):
+        # Rebuild the config explicitly so each run is independent except for the seed offset.
         cfg = SimConfig(
             n_trials=config.n_trials,
             n_lanes=config.n_lanes,

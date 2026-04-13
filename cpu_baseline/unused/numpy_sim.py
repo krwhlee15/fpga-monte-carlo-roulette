@@ -12,11 +12,11 @@ def run_numpy(config):
 
     t_start = time.perf_counter()
 
-    # Generate all outcomes at once
+    # This older baseline materializes the entire outcome stream in one array.
     outcomes = rng.integers(0, 38, size=config.n_trials)
     outcome_histogram = np.bincount(outcomes, minlength=38)
 
-    # Map outcomes to colors: 0 and 37 are green, rest are red/black
+    # Reuse the roulette color partitioning from the main model.
     red_mask = np.isin(outcomes, list(RED_NUMBERS))
     green_mask = (outcomes == 0) | (outcomes == 37)
 
@@ -30,7 +30,7 @@ def run_numpy(config):
         assert False, f"Unknown bet type: {bet_type}"
 
     if config.strategy == "flat":
-        # Fully vectorized for flat betting
+        # Flat betting is independent across trials, so it vectorizes cleanly.
         payouts = np.where(
             win_mask,
             config.base_bet if bet_type == "red_black" else config.base_bet * 35,
@@ -42,7 +42,7 @@ def run_numpy(config):
         final_bankroll = config.initial_bankroll + total_payout
 
     elif config.strategy == "martingale":
-        # Must be sequential due to state dependency
+        # Martingale still has to walk the trials in order because the next bet depends on history.
         wins = 0
         losses = 0
         total_payout = 0

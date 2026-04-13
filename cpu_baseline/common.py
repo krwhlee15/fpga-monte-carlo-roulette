@@ -3,6 +3,7 @@ from typing import Dict, Optional
 
 @dataclass
 class BenchmarkResult:
+    # Shared result shape so reporting code can treat all workloads uniformly.
     workload: str
     mode: str
     trials: int

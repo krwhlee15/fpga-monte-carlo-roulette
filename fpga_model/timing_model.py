@@ -1,7 +1,7 @@
 def stage_cycle_cost(config):
     """
     Cycle cost model per stage.
-    Keeps 4 logical stages fixed, but allows heavier arithmetic to cost more.
+    Keeps 4 logical stages fixed, but lets heavier arithmetic occupy more cycles.
     """
     if config.workload == "roulette":
         return {"rng": 1, "map": 1, "eval": 1, "update": 1}
@@ -38,4 +38,5 @@ def estimate_max_clock_mhz(config):
 
 
 def effective_clock_mhz(config):
+    # The simulator cannot exceed the modeled timing limit for a design point.
     return min(config.clock_freq_mhz, estimate_max_clock_mhz(config))

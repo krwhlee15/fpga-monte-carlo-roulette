@@ -11,9 +11,11 @@ def run_roulette_serial(config):
 
     start = time.perf_counter()
     for _ in range(config.n_trials):
+        # Model American roulette as 38 equally likely pockets: 0, 00, and 1-36.
         outcome = rng.randrange(38)
 
         if config.bet_type == "red_black":
+            # This simplified model treats outcomes 0-17 as the winning even-money side.
             win = outcome < 18
             payout_win = current_bet
         else:
@@ -24,10 +26,12 @@ def run_roulette_serial(config):
             wins += 1
             total_payout += payout_win
             if config.strategy == "martingale":
+                # Martingale resets after a win.
                 current_bet = config.base_bet
         else:
             total_payout -= current_bet
             if config.strategy == "martingale":
+                # Martingale doubles after a loss, creating stateful dependence across trials.
                 current_bet *= 2
 
     elapsed = time.perf_counter() - start
@@ -46,7 +50,7 @@ def run_roulette_numpy(config, batch_size=1_000_000):
     rng = np.random.default_rng(config.seed)
     start = time.perf_counter()
 
-    # martingale cannot be fully vectorized
+    # Martingale depends on the previous outcome, so it falls back to the serial loop.
     if config.strategy == "martingale":
         elapsed = time.perf_counter() - start
         result = run_roulette_serial(config)
@@ -58,6 +62,7 @@ def run_roulette_numpy(config, batch_size=1_000_000):
     total_payout = 0.0
 
     while done < config.n_trials:
+        # Batch the random draws so large experiments do not allocate one giant array.
         m = min(batch_size, config.n_trials - done)
         outcomes = rng.integers(0, 38, size=m)
 

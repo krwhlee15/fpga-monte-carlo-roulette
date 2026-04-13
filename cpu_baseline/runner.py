@@ -3,6 +3,7 @@ from .sine import run_sine_serial, run_sine_numpy
 from .option_pricing import run_option_serial, run_option_numpy
 
 def run_cpu_serial(config):
+    # Dispatch to the matching scalar Python baseline.
     if config.workload == "roulette":
         return run_roulette_serial(config)
     if config.workload == "sine":
@@ -12,6 +13,7 @@ def run_cpu_serial(config):
     raise ValueError(f"Unknown workload: {config.workload}")
 
 def run_cpu_numpy(config):
+    # Dispatch to the vectorized baseline when a workload supports it.
     if config.workload == "roulette":
         return run_roulette_numpy(config)
     if config.workload == "sine":

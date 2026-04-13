@@ -6,6 +6,7 @@ from fpga_model.fpga_sim import run_fpga_sim
 
 class TestFPGASine(unittest.TestCase):
     def test_sine_estimate_tracks_ground_truth(self):
+        # The modeled integral over [0, pi] should converge near the analytical value of 2.
         config = SimConfig(
             workload="sine",
             n_trials=20000,

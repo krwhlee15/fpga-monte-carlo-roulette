@@ -24,13 +24,13 @@ def run_serial(config):
     t_start = time.perf_counter()
 
     for _ in range(config.n_trials):
-        # Generate outcome
+        # Sample one roulette pocket and update the running histogram.
         outcome = rng.randint(0, 37)
         outcome_histogram[outcome] += 1
 
         number, color = OUTCOME_MAP[outcome]
 
-        # Evaluate bet
+        # Resolve the configured bet against the sampled pocket.
         if bet_type == "red_black":
             win = color == "red"
             payout = current_bet if win else -current_bet
@@ -47,7 +47,7 @@ def run_serial(config):
         total_payout += payout
         bankroll += payout
 
-        # Strategy update
+        # Strategy update happens after the payout is known.
         if strategy == "martingale":
             current_bet = config.base_bet if win else current_bet * 2
         # flat: current_bet stays the same

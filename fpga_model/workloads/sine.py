@@ -6,6 +6,7 @@ class SineWorkload(BaseWorkload):
     name = "sine"
 
     def stage2_map(self, raw_rng: int, lane_state: dict, config):
+        # Convert a 32-bit integer into a uniform sample over the integration interval.
         u = (raw_rng & 0xFFFFFFFF) / float(2**32)
         return config.sine_a + (config.sine_b - config.sine_a) * u
 
@@ -28,6 +29,7 @@ class SineWorkload(BaseWorkload):
     def finalize_estimate(self, aggregates: dict, config):
         if aggregates["count"] == 0:
             return 0.0
+        # Monte Carlo integral = interval width times the average sampled function value.
         width = config.sine_b - config.sine_a
         return width * (aggregates["sum_fx"] / aggregates["count"])
 

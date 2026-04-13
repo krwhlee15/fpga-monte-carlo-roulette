@@ -31,6 +31,7 @@ def evaluate_bet(number, color, bet_type, bet_amount):
     Red/black pays 1:1, single number pays 35:1.
     """
     if bet_type == "red_black":
+        # The simplified even-money bet wins on the red pockets only.
         win = color == "red"
         payout = bet_amount if win else -bet_amount
     elif bet_type == "single_number":
@@ -50,11 +51,13 @@ LFSR_MASK = 0xFFFFFFFF
 class LFSR:
     def __init__(self, seed):
         assert seed != 0, "LFSR seed must be nonzero"
+        # Mask to 32 bits so the software model matches the intended hardware width.
         self.state = seed & LFSR_MASK
         self.steps_since_reseed = 0
 
     def step(self):
         """Advance the LFSR by one clock cycle. Returns the new state."""
+        # Galois form applies feedback only when the outgoing low bit is 1.
         lsb = self.state & 1
         self.state >>= 1
         if lsb:
@@ -65,6 +68,7 @@ class LFSR:
 
     def get_outcome(self):
         """Map current state to a roulette outcome in [0, 37]."""
+        # Modulo reduction is a simple stand-in for mapping raw RNG bits to table entries.
         return self.state % 38
 
     def reseed(self, xor_val):

@@ -15,6 +15,7 @@ from fpga_model.lfsr import LFSR
 from cpu_baseline.runner import run_cpu_serial, run_cpu_numpy
 
 def print_result(result):
+    # Keep CLI output compact but consistent across CPU modes and workloads.
     print("=" * 60)
     print(f"Workload   : {result.workload}")
     print(f"Mode       : {result.mode}")
@@ -30,12 +31,12 @@ def print_result(result):
 
 def main():
     parser = argparse.ArgumentParser(description="FPGA Monte Carlo Simulator")
-    # EXISTING ARGS
+    # Benchmark/plot orchestration flags.
     parser.add_argument("--quick", action="store_true", help="Run a small quick benchmark (fewer configs)")
     parser.add_argument("--plot-only", action="store_true", help="Skip simulation, only generate plots from existing CSV")
     parser.add_argument("--output-dir", default="results", help="Output directory for results and plots")
 
-    # NEW CPU-ONLY ARGS
+    # CPU-only path for comparing the software baselines without the FPGA model.
     parser.add_argument("--cpu-only", action="store_true", help="Run CPU baseline only and skip FPGA flow")
     parser.add_argument("--workload", choices=["roulette", "sine", "option"], default="roulette")
     parser.add_argument("--mode", choices=["serial", "numpy", "both"], default="both")
@@ -43,6 +44,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     
     
+    # Workload-specific parameters exposed on the CLI.
     # Roulette args
     parser.add_argument("--strategy", choices=["flat", "martingale"], default="flat")
     parser.add_argument("--bet-type", choices=["red_black", "single_number"], default="red_black")
@@ -66,7 +68,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     csv_path = os.path.join(output_dir, "benchmark_results.csv")
 
-    # NEW: CPU-only branch
+    # Short-circuit into the baseline implementations when the user only wants CPU results.
     if args.cpu_only:
         config = SimConfig(
             n_trials=args.trials if args.trials is not None else 100_000,
@@ -98,7 +100,7 @@ def main():
     all_workloads = ["roulette", "sine", "option"]
 
     if not args.plot_only:
-        # Run benchmark sweep
+        # Sweep a smaller parameter grid for quick checks, otherwise use the fuller study.
         if args.quick:
             lane_counts = [1, 4, 16]
             bus_ports_list = [2]
@@ -112,7 +114,7 @@ def main():
             clock_freqs = [100.0, 200.0, 250.0]
             n_trials = 100_000
 
-        # Run benchmark for each workload, append all results to one CSV
+        # Run each workload independently, then combine the rows into one report CSV.
         all_results = []
         all_cpu = {}
         for wl in all_workloads:
@@ -134,7 +136,7 @@ def main():
             all_results.extend(results)
             all_cpu[wl] = cpu_results
 
-        # Write combined CSV
+        # Write one normalized CSV so the plotting helpers only need a single input file.
         import csv as csv_mod
         assert len(all_results) > 0
         fieldnames = list(all_results[0].keys())
@@ -148,7 +150,7 @@ def main():
             writer.writerows(all_results)
         print(f"\nCombined results saved to {csv_path}")
 
-        # Detailed analysis per workload
+        # Run one representative configuration per workload to generate deeper analysis plots.
         print("\n" + "=" * 60)
         print("Running detailed analysis per workload...")
         print("=" * 60)

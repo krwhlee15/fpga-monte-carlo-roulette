@@ -15,6 +15,7 @@ import numpy as np
 
 @dataclass
 class BenchmarkResult:
+    # Legacy result container used by the older all-in-one baseline script.
     workload: str
     mode: str
     trials: int
@@ -25,6 +26,7 @@ class BenchmarkResult:
 
 
 def timed_run(fn, *args, **kwargs):
+    # Wrap a pure workload function so timing stays separate from the computation logic.
     start = time.perf_counter()
     result = fn(*args, **kwargs)
     end = time.perf_counter()
@@ -277,6 +279,7 @@ def sine_integral_numpy(
     done = 0
 
     while done < n_trials:
+        # Process samples in chunks to avoid allocating one huge random array.
         m = min(batch_size, n_trials - done)
         u = rng.random(m)
         x = a + width * u
@@ -312,6 +315,7 @@ def sine_integral_numpy(
 # ============================================================
 
 def normal_cdf(x: float) -> float:
+    # Standard normal CDF for the closed-form Black-Scholes comparison.
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
 
@@ -338,10 +342,12 @@ def european_call_serial(
     rng = random.Random(seed)
 
     payoff_sum = 0.0
+    # Separate the deterministic drift from the random diffusion term.
     drift = (r - 0.5 * sigma * sigma) * T
     diffusion_scale = sigma * math.sqrt(T)
 
     for _ in range(n_trials):
+        # Simulate one terminal stock price and accumulate its payoff.
         z = rng.gauss(0.0, 1.0)
         ST = S0 * math.exp(drift + diffusion_scale * z)
         payoff = max(ST - K, 0.0)
@@ -388,6 +394,7 @@ def european_call_numpy(
     done = 0
 
     while done < n_trials:
+        # NumPy handles many independent paths at once, but still in bounded-size batches.
         m = min(batch_size, n_trials - done)
         z = rng.standard_normal(m)
         ST = S0 * np.exp(drift + diffusion_scale * z)
@@ -422,6 +429,7 @@ def european_call_numpy(
 # ============================================================
 
 def finalize_timing(result: BenchmarkResult, elapsed: float) -> BenchmarkResult:
+    # Attach elapsed time after the workload returns its logical result payload.
     result.elapsed_sec = elapsed
     result.throughput_trials_per_sec = result.trials / elapsed if elapsed > 0 else float("inf")
     return result

@@ -31,9 +31,7 @@ class MemoryBus:
     def utilization(self, current_time):
         if current_time == 0:
             return 0.0
-        # Utilization approximated by: how often is the bus fully occupied?
-        # We track this via queue length snapshots, but for simplicity
-        # use: total_wait_time / (current_time * capacity) as a proxy
+        # This older proxy treats accumulated wait time as a rough signal of saturation.
         capacity = self.resource.capacity
         return self.total_wait_time / (current_time * capacity)
 

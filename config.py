@@ -3,6 +3,7 @@ import math
 
 @dataclass
 class SimConfig:
+    # Shared knobs used by both the CPU baselines and FPGA timing/resource models.
     # Common
     n_trials: int = 100_000
     seed: int = 42

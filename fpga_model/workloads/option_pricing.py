@@ -6,10 +6,12 @@ class OptionPricingWorkload(BaseWorkload):
     name = "option"
 
     def init_lane_state(self, config):
+        # Cache the second Box-Muller sample so every other normal draw is essentially free.
         return {"box_muller_spare": None}
 
     @staticmethod
     def _uniform01(raw_rng: int) -> float:
+        # Clamp away from 0 and 1 to keep log() and Box-Muller numerically safe.
         u = (raw_rng & 0xFFFFFFFF) / float(2**32)
         return min(max(u, 1e-12), 1.0 - 1e-12)
 
@@ -19,6 +21,7 @@ class OptionPricingWorkload(BaseWorkload):
             lane_state["box_muller_spare"] = None
             return z, lane_state
 
+        # Box-Muller transforms two uniform values into two Gaussian samples.
         u1 = self._uniform01(raw_rng)
         mixed = ((raw_rng * 1664525 + 1013904223) & 0xFFFFFFFF)
         u2 = self._uniform01(mixed)
@@ -38,6 +41,7 @@ class OptionPricingWorkload(BaseWorkload):
 
     def stage3_evaluate(self, mapped_value: dict, lane_state: dict, config):
         z = mapped_value["z"]
+        # Simulate the terminal stock price under Black-Scholes assumptions.
         drift = (config.r - 0.5 * config.sigma * config.sigma) * config.T
         diffusion = config.sigma * math.sqrt(config.T) * z
         ST = config.S0 * math.exp(drift + diffusion)
@@ -67,6 +71,7 @@ class OptionPricingWorkload(BaseWorkload):
         return aggregates["sum_discounted_payoff"] / aggregates["count"] if aggregates["count"] else 0.0
 
     def ground_truth(self, config):
+        # Analytical Black-Scholes price used to measure Monte Carlo error.
         d1 = (math.log(config.S0 / config.K) + (config.r + 0.5 * config.sigma**2) * config.T) / (
             config.sigma * math.sqrt(config.T)
         )

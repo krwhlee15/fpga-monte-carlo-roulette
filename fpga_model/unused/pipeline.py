@@ -70,7 +70,7 @@ def lane_process(env, lane_id, n_trials, lfsr, memory_bus, reducer, config):
             current_bet = strategy_fn(win, current_bet, config.base_bet)
             yield env.timeout(1)
 
-        # Deposit result to reducer (may stall on backpressure)
+        # Deposit the completed trial into the shared reducer, which may become the bottleneck.
         before_wait = env.now
         req = reducer.request()
         yield req
@@ -80,7 +80,7 @@ def lane_process(env, lane_id, n_trials, lfsr, memory_bus, reducer, config):
         yield env.timeout(1)  # 1 cycle for reduction
         reducer.release(req)
 
-        # LFSR reseed check
+        # Periodic reseeding injects additional pipeline bubbles in this older SimPy model.
         if lfsr.steps_since_reseed >= config.lfsr_reseed_interval:
             lfsr.reseed(config.seed + lane_id + trial_idx)
             yield env.timeout(config.lfsr_reseed_latency)

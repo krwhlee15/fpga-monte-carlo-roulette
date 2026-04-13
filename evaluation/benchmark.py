@@ -35,13 +35,13 @@ def run_benchmark(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Base config for CPU workload under test
+    # CPU baselines provide the software reference point for every FPGA configuration.
     base_config = SimConfig(
         n_trials=n_trials,
         workload=workload,
     )
 
-    # Run CPU baselines once per strategy
+    # CPU work does not depend on lane/bus/reducer counts, so compute it once per strategy.
     cpu_results = {}
     for strategy in strategies:
         cfg = replace(base_config, strategy=strategy)
@@ -64,7 +64,7 @@ def run_benchmark(
             f"numpy={numpy_res.throughput_trials_per_sec:.0f} trials/s"
         )
 
-    # FPGA sweep
+    # Sweep the FPGA design space and join each modeled run with the baseline data.
     fpga_base_config = SimConfig(
         n_trials=n_trials,
         workload=workload,
@@ -89,6 +89,7 @@ def run_benchmark(
         fpga = run_fpga_sim(cfg)
         cpu = cpu_results[strategy]
 
+        # Store one flat row per configuration so downstream plotting stays simple.
         row = {
             "workload": workload,
             "n_lanes": n_lanes,
@@ -130,7 +131,7 @@ def run_benchmark(
         results.append(row)
         print(f"throughput={fpga['throughput']:.2e}, speedup_serial={row['speedup_vs_serial']:.1f}x")
 
-    # Save to CSV
+    # Persist the sweep so plotting/analysis can be rerun without recomputing simulations.
     csv_path = os.path.join(output_dir, "benchmark_results.csv")
     assert len(results) > 0
     fieldnames = list(results[0].keys())

@@ -7,6 +7,7 @@ from fpga_model.timing_model import effective_clock_mhz, estimate_max_clock_mhz,
 
 
 def _apply_resource_accesses(resource, request_cycle, service_cycles, metrics, stall_type):
+    # Model repeated single-cycle accesses so wait time can accumulate realistically.
     cycle = request_cycle
     total_wait = 0
     for _ in range(service_cycles):
@@ -25,6 +26,7 @@ def run_fpga_sim(config):
     clock_mhz = effective_clock_mhz(config)
 
     if not feasible:
+        # Return a fully shaped result even when the modeled design exceeds board limits.
         return {
             "workload": config.workload,
             "estimate": 0.0,
@@ -77,6 +79,7 @@ def run_fpga_sim(config):
     ordered_outcomes = []
 
     for trial_id in range(config.n_trials):
+        # Assign trials round-robin across lanes, then advance that lane through the pipeline.
         lane = lanes[trial_id % config.n_lanes]
         cycle = lane.next_free_cycle
         start_cycle = cycle
@@ -89,6 +92,7 @@ def run_fpga_sim(config):
             config.lfsr_reseed_interval > 0
             and lane.lfsr.steps_since_reseed >= config.lfsr_reseed_interval
         ):
+            # Periodic reseeding injects a stall into the model instead of being "free."
             metrics.stall_counters["reseed"] += config.lfsr_reseed_latency
             metrics.total_reseed_stall_cycles += config.lfsr_reseed_latency
             cycle += config.lfsr_reseed_latency
@@ -126,6 +130,7 @@ def run_fpga_sim(config):
             cycle,
             drain_cycles=workload.output_drain_cycles(config),
         )
+        # A full output buffer backpressures the lane until space drains out.
         metrics.total_buffer_wait_cycles += buffer_wait
         metrics.record_stall("buffer", cycle, buffer_wait)
         cycle = push_cycle
@@ -135,6 +140,7 @@ def run_fpga_sim(config):
             cycle,
             service_cycles=workload.reducer_service_cycles(config),
         )
+        # The reducer is the final shared aggregation point across all lanes.
         metrics.total_reducer_wait_cycles += reducer_wait
         metrics.record_stall("reducer", cycle, reducer_wait)
         cycle = reducer_start + workload.reducer_service_cycles(config)
@@ -148,6 +154,7 @@ def run_fpga_sim(config):
         lane.next_free_cycle = cycle
         metrics.record_latency(latency)
 
+    # The design completes when the slowest lane finishes its final assigned trial.
     total_cycles = max((lane.next_free_cycle for lane in lanes), default=0)
     sim_seconds = total_cycles / (clock_mhz * 1e6) if total_cycles > 0 else 0.0
     throughput = config.n_trials / sim_seconds if sim_seconds > 0 else 0.0
@@ -159,6 +166,7 @@ def run_fpga_sim(config):
         for lane in lanes
     }
 
+    # Return both user-facing metrics and the lower-level counters needed for analysis/plots.
     result = {
         "workload": config.workload,
         "estimate": estimate,

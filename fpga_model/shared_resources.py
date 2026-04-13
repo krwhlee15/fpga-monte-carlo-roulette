@@ -17,6 +17,7 @@ class SharedResourcePool:
         if service_cycles <= 0:
             raise ValueError("Service cycles must be positive")
         self.total_requests += 1
+        # Pick the slot that can serve this request the earliest.
         idx = min(range(self.capacity), key=lambda i: max(self.next_free[i], request_cycle))
         start_cycle = max(self.next_free[idx], request_cycle)
         wait_cycles = start_cycle - request_cycle
@@ -56,6 +57,7 @@ class OutputBuffer:
             self.release_cycles.append(request_cycle + drain_cycles)
             return request_cycle, 0
 
+        # When full, stall until the earliest in-flight item drains out.
         earliest = min(self.release_cycles)
         stall = max(0, earliest - request_cycle)
         self.release_cycles = [c for c in self.release_cycles if c > earliest]

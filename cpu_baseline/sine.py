@@ -6,6 +6,7 @@ from .common import BenchmarkResult
 
 def run_sine_serial(config):
     rng = random.Random(config.seed)
+    # Monte Carlo integration samples x uniformly over [a, b].
     width = config.sine_b - config.sine_a
     s = 0.0
 
@@ -16,6 +17,7 @@ def run_sine_serial(config):
         s += math.sin(x)
     elapsed = time.perf_counter() - start
 
+    # Multiply the sample mean by the interval width to estimate the integral.
     estimate = width * (s / config.n_trials)
     exact = math.cos(config.sine_a) - math.cos(config.sine_b)
 
@@ -38,6 +40,7 @@ def run_sine_numpy(config, batch_size=1_000_000):
 
     start = time.perf_counter()
     while done < config.n_trials:
+        # Process the integral estimate in chunks to bound memory use.
         m = min(batch_size, config.n_trials - done)
         u = rng.random(m)
         x = config.sine_a + width * u

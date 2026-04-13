@@ -5,9 +5,11 @@ class RouletteWorkload(BaseWorkload):
     name = "roulette"
 
     def init_lane_state(self, config):
+        # Track per-lane betting state so Martingale can evolve independently by lane.
         return {"current_bet": config.base_bet}
 
     def stage2_map(self, raw_rng: int, lane_state: dict, config):
+        # Compress the raw RNG output into one roulette pocket.
         return raw_rng % 38
 
     def stage3_evaluate(self, outcome: int, lane_state: dict, config):
@@ -30,6 +32,7 @@ class RouletteWorkload(BaseWorkload):
 
     def stage4_update(self, eval_result, lane_state: dict, config):
         if config.strategy == "martingale":
+            # Strategy state changes are modeled after the bet outcome is known.
             if eval_result["win"]:
                 lane_state["current_bet"] = config.base_bet
             else:

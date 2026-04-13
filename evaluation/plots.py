@@ -14,6 +14,7 @@ def load_results(csv_path):
         for row in reader:
             for key in row:
                 try:
+                    # CSV is string-based; convert numeric-looking fields back to floats.
                     row[key] = float(row[key])
                 except (TypeError, ValueError):
                     pass
@@ -43,7 +44,7 @@ def plot_throughput_vs_lanes(rows, output_dir, bus_ports=2, reducer_tput=4):
         tputs = [r["fpga_throughput"] for r in subset]
         ax.plot(lanes, tputs, "o-", label=f"{strategy}")
 
-    # Ideal linear reference
+    # Overlay the ideal linear scale-up from the single-lane flat-betting point.
     if rows:
         base_subset = filter_rows(rows, strategy="flat", bus_ports=bus_ports, reducer_throughput=reducer_tput, n_lanes=1.0)
         if base_subset:
@@ -196,6 +197,7 @@ def plot_latency_histogram(lane_latencies, output_dir, title_suffix=""):
 
     all_latencies = []
     for lane_id, lats in lane_latencies.items():
+        # Collapse per-lane latency lists into one distribution for the histogram.
         all_latencies.extend(lats)
 
     if not all_latencies:
@@ -219,14 +221,14 @@ def plot_convergence(n_values, win_rates, ci_lower, ci_upper, output_dir, bet_ty
     """Plot 7: Running win rate with confidence interval bands."""
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    # Subsample for plotting if too many points
+    # Downsample dense series so the plot remains legible and fast to render.
     step = max(1, len(n_values) // 1000)
     idx = slice(None, None, step)
 
     ax.plot(n_values[idx], win_rates[idx], linewidth=0.8, label="Win rate")
     ax.fill_between(n_values[idx], ci_lower[idx], ci_upper[idx], alpha=0.2, label="95% CI")
 
-    # Theoretical win rate
+    # Draw the analytical target so the running estimate has a fixed reference line.
     if bet_type == "red_black":
         theoretical = 18.0 / 38.0
     elif bet_type == "single_number":
@@ -273,7 +275,7 @@ def plot_outcome_histogram(histogram, output_dir):
     chi2, p_val = lfsr_chi_squared(histogram)
     ax.set_title(f"Outcome Distribution (chi-squared={chi2:.2f}, p={p_val:.4f})")
 
-    # Expected line
+    # A uniform RNG would make every pocket appear equally often in expectation.
     expected = histogram.sum() / 38.0
     ax.axhline(expected, color="blue", linestyle="--", alpha=0.5, label=f"Expected={expected:.0f}")
     ax.legend()
@@ -348,6 +350,7 @@ def generate_all_plots(csv_path, output_dir, fpga_result=None, convergence_data=
     if not rows:
         return
 
+    # These plots cover scaling, bottlenecks, and one representative detailed run.
     print("Generating plots...")
     plot_throughput_vs_lanes(rows, output_dir)
     plot_speedup_vs_lanes(rows, output_dir)

@@ -43,6 +43,7 @@ class Reducer:
     def utilization(self, current_time):
         if current_time == 0:
             return 0.0
+        # This simplified model again uses accumulated wait as a saturation proxy.
         capacity = self.resource.capacity
         return self.total_wait_time / (current_time * capacity)
 

@@ -7,6 +7,7 @@ from fpga_model.fpga_sim import run_fpga_sim
 
 class TestFPGARoulette(unittest.TestCase):
     def test_roulette_outputs_and_metrics(self):
+        # Exercise the common result fields plus roulette-specific aggregates.
         config = SimConfig(
             workload="roulette",
             n_trials=2000,
@@ -34,6 +35,7 @@ class TestFPGARoulette(unittest.TestCase):
         self.assertLessEqual(result["win_rate"], 1.0)
 
     def test_martingale_increases_bus_pressure(self):
+        # Martingale needs an extra update access, so it should stress the shared bus more.
         shared = {
             "workload": "roulette",
             "n_trials": 1500,

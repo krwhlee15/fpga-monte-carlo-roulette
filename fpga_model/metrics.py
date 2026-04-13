@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class MetricsCollector:
+    # Accumulates stage activity and stall information across the whole run.
     total_bus_wait_cycles: int = 0
     total_reducer_wait_cycles: int = 0
     total_buffer_wait_cycles: int = 0
@@ -34,6 +35,7 @@ class MetricsCollector:
         if stall_cycles <= 0:
             return
         self.stall_counters[stall_type] += stall_cycles
+        # Keep raw intervals so overlapping stalls can be merged later.
         self.stall_intervals.append((start_cycle, start_cycle + stall_cycles))
 
     def mean_latency(self):
@@ -48,6 +50,7 @@ class MetricsCollector:
         if not self.stall_intervals:
             return 0.0
 
+        # Merge overlaps to avoid double-counting cycles where multiple resources stall at once.
         merged = []
         for start, end in sorted(self.stall_intervals):
             if not merged or start > merged[-1][1]:

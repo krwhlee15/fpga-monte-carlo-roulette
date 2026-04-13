@@ -8,6 +8,7 @@ from evaluation.benchmark import run_benchmark
 
 class TestBenchmarkOutputs(unittest.TestCase):
     def test_benchmark_writes_fpga_and_cpu_fields(self):
+        # The benchmark CSV should preserve both modeled hardware metrics and CPU references.
         with tempfile.TemporaryDirectory() as tmpdir:
             results, cpu_results = run_benchmark(
                 lane_counts=[1, 2],

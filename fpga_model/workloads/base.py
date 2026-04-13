@@ -1,5 +1,6 @@
 class BaseWorkload:
     name = "base"
+    # These hooks let the simulator reuse one 4-stage pipeline skeleton for every workload.
 
     def init_lane_state(self, config):
         return {}

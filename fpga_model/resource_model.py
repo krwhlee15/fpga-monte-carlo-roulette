@@ -7,6 +7,7 @@ BOARD_LIMITS = {
 
 
 def estimate_resources(config):
+    # Heavier arithmetic workloads consume more per-lane LUT/DSP/BRAM/FF budget.
     if config.workload == "roulette":
         lut_per_lane = 180
         dsp_per_lane = 0
@@ -25,6 +26,7 @@ def estimate_resources(config):
     else:
         raise ValueError(f"Unknown workload: {config.workload}")
 
+    # Shared infrastructure grows with bus ports, reducer throughput, and buffer sizing.
     shared_lut = 300 + 80 * config.memory_bus_ports + 100 * config.reducer_throughput
     shared_dsp = 0
     shared_bram = 20 + max(config.output_buffer_size, 1)
@@ -39,6 +41,7 @@ def estimate_resources(config):
 
 
 def config_is_feasible(config):
+    # A configuration is feasible only if every modeled resource fits on the board.
     usage = estimate_resources(config)
     return (
         usage["lut"] <= BOARD_LIMITS["lut"]
