@@ -2,6 +2,7 @@ import random
 import time
 import numpy as np
 from .common import BenchmarkResult
+from fpga_model.lfsr import RED_NUMBERS
 
 def run_roulette_serial(config):
     rng = random.Random(config.seed)
@@ -15,8 +16,8 @@ def run_roulette_serial(config):
         outcome = rng.randrange(38)
 
         if config.bet_type == "red_black":
-            # This simplified model treats outcomes 0-17 as the winning even-money side.
-            win = outcome < 18
+            # Reuse the same red-pocket set as the FPGA model so both paths agree on winners.
+            win = outcome in RED_NUMBERS
             payout_win = current_bet
         else:
             win = (outcome == config.single_number_choice)
@@ -67,7 +68,8 @@ def run_roulette_numpy(config, batch_size=1_000_000):
         outcomes = rng.integers(0, 38, size=m)
 
         if config.bet_type == "red_black":
-            win_mask = outcomes < 18
+            # Match the serial baseline and FPGA model's definition of a winning red pocket.
+            win_mask = np.isin(outcomes, list(RED_NUMBERS))
             win_payout = config.base_bet
         else:
             win_mask = (outcomes == config.single_number_choice)

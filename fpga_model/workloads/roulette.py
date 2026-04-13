@@ -1,4 +1,5 @@
 from .base import BaseWorkload
+from fpga_model.lfsr import RED_NUMBERS
 
 
 class RouletteWorkload(BaseWorkload):
@@ -16,7 +17,8 @@ class RouletteWorkload(BaseWorkload):
         current_bet = lane_state["current_bet"]
 
         if config.bet_type == "red_black":
-            win = outcome < 18
+            # Use the canonical red-pocket map so FPGA results align with the CPU baselines.
+            win = outcome in RED_NUMBERS
             payout = current_bet if win else -current_bet
         elif config.bet_type == "single_number":
             win = (outcome == config.single_number_choice)
