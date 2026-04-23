@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import math
 
+# edit this file to change test paramaters for each workload or all
+# can modify fpga paramters as well
 @dataclass
 class SimConfig:
     # Shared knobs used by both the CPU baselines and FPGA timing/resource models.

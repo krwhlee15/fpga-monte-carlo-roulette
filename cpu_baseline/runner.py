@@ -2,6 +2,8 @@ from .roulette import run_roulette_serial, run_roulette_numpy
 from .sine import run_sine_serial, run_sine_numpy
 from .option_pricing import run_option_serial, run_option_numpy
 
+# used to run all serial and numpy functions
+# acts as a wrapper
 def run_cpu_serial(config):
     # Dispatch to the matching scalar Python baseline.
     if config.workload == "roulette":

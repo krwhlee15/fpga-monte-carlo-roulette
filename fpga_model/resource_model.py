@@ -1,13 +1,15 @@
+# from Basys3 board online parameters so simulation does not exceed
 BOARD_LIMITS = {
     "lut": 33280,
     "dsp": 90,
     "bram_kbits": 1800,
-    "ff": 66560,  # rough modeled budget
+    "ff": 66560,  # rough modeled budget because a logic cell contains both lut and ff (4 and 8 respecivly)
 }
 
 
 def estimate_resources(config):
     # Heavier arithmetic workloads consume more per-lane LUT/DSP/BRAM/FF budget.
+    # based on computation intensity, number of computations per trial and branching
     if config.workload == "roulette":
         lut_per_lane = 180
         dsp_per_lane = 0
@@ -27,6 +29,7 @@ def estimate_resources(config):
         raise ValueError(f"Unknown workload: {config.workload}")
 
     # Shared infrastructure grows with bus ports, reducer throughput, and buffer sizing.
+    # Estimate logic cells and memory required for communication between lanes
     shared_lut = 300 + 80 * config.memory_bus_ports + 100 * config.reducer_throughput
     shared_dsp = 0
     shared_bram = 20 + max(config.output_buffer_size, 1)

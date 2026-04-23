@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+# what is returened from all funcs
 @dataclass
 class BenchmarkResult:
     # Shared result shape so reporting code can treat all workloads uniformly.

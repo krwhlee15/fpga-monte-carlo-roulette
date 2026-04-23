@@ -25,7 +25,7 @@ def run_option_serial(config):
     for _ in range(config.n_trials):
         # z is the standard normal shock for one simulated terminal price.
         z = rng.gauss(0.0, 1.0)
-        # Simulated stock price at maturity.
+        # Simulated stock price at maturity using constants and z
         ST = config.S0 * math.exp(drift + diffusion * z)
         # European call payoff: exercise only when the option finishes in the money.
         payoff_sum += max(ST - config.K, 0.0)
@@ -33,7 +33,7 @@ def run_option_serial(config):
 
     # Discount the average payoff back to present value.
     estimate = math.exp(-config.r * config.T) * (payoff_sum / config.n_trials)
-    # Compare the Monte Carlo estimate against the analytical benchmark.
+    # Compare the Monte Carlo estimate against the analytical benchmark, aka ground truth
     exact = black_scholes_call_price(config.S0, config.K, config.r, config.sigma, config.T)
 
     return BenchmarkResult(
@@ -46,6 +46,7 @@ def run_option_serial(config):
         extra={"black_scholes_exact": exact, "absolute_error": abs(estimate - exact)}
     )
 
+# same as above but vectorized for n_trials
 def run_option_numpy(config, batch_size=1_000_000):
     rng = np.random.default_rng(config.seed)
     # Match the serial formulation, but evaluate many paths per NumPy batch.
@@ -59,9 +60,11 @@ def run_option_numpy(config, batch_size=1_000_000):
     while done < config.n_trials:
         # Chunk the workload so very large trial counts do not exhaust memory.
         m = min(batch_size, config.n_trials - done)
+        # array of m random variables
         z = rng.standard_normal(m)
+        # array calc
         ST = config.S0 * np.exp(drift + diffusion * z)
-        payoff_sum += np.maximum(ST - config.K, 0.0).sum()
+        payoff_sum += np.maximum(ST - config.K, 0.0).sum() # sum max each element
         done += m
     elapsed = time.perf_counter() - start
 

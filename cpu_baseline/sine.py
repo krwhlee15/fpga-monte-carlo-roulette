@@ -31,7 +31,7 @@ def run_sine_serial(config):
         extra={"exact_value": exact, "absolute_error": abs(estimate - exact)}
     )
 
-
+# vectorzied version
 def run_sine_numpy(config, batch_size=1_000_000):
     rng = np.random.default_rng(config.seed)
     width = config.sine_b - config.sine_a
@@ -42,6 +42,7 @@ def run_sine_numpy(config, batch_size=1_000_000):
     while done < config.n_trials:
         # Process the integral estimate in chunks to bound memory use.
         m = min(batch_size, config.n_trials - done)
+        # array of size m
         u = rng.random(m)
         x = config.sine_a + width * u
         s += np.sin(x).sum()

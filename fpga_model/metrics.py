@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 @dataclass
 class MetricsCollector:
     # Accumulates stage activity and stall information across the whole run.
+    # Used for final evaluation metrics
     total_bus_wait_cycles: int = 0
     total_reducer_wait_cycles: int = 0
     total_buffer_wait_cycles: int = 0

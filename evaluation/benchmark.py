@@ -7,8 +7,6 @@ from config import SimConfig
 from fpga_model.fpga_sim import run_fpga_sim
 from cpu_baseline.runner import run_cpu_serial, run_cpu_numpy
 
-
-
 def run_benchmark(
     lane_counts=None,
     bus_ports_list=None,

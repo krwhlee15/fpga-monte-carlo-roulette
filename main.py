@@ -159,6 +159,7 @@ def main():
         conv_data = {}
         conv_n = min(n_trials, 50_000)
 
+        # loop through workload tests
         for wl in all_workloads:
             print(f"\n--- {wl} ---")
             detail_config = SimConfig(

@@ -1,6 +1,6 @@
 from fpga_model.lfsr import LFSR
 
-
+# generated for each parallel simulation task
 class Lane:
     def __init__(self, lane_id: int, initial_state: dict, seed: int):
         # Each lane keeps its own workload state, RNG state, and latency history.

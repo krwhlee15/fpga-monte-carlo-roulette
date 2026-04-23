@@ -3,6 +3,9 @@ def stage_cycle_cost(config):
     Cycle cost model per stage.
     Keeps 4 logical stages fixed, but lets heavier arithmetic occupy more cycles.
     """
+    # estimated clock cycles used for each pipeline stage per workload
+    # more cycles for more complex computation
+    # more cycles may seem worse but it also allows for higher clock speeds as less work is done per cycle
     if config.workload == "roulette":
         return {"rng": 1, "map": 1, "eval": 1, "update": 1}
     if config.workload == "sine":

@@ -47,6 +47,7 @@ def run_roulette_serial(config):
     )
 
 
+# vectorized version
 def run_roulette_numpy(config, batch_size=1_000_000):
     rng = np.random.default_rng(config.seed)
     start = time.perf_counter()
@@ -65,6 +66,7 @@ def run_roulette_numpy(config, batch_size=1_000_000):
     while done < config.n_trials:
         # Batch the random draws so large experiments do not allocate one giant array.
         m = min(batch_size, config.n_trials - done)
+        # array or results
         outcomes = rng.integers(0, 38, size=m)
 
         if config.bet_type == "red_black":
@@ -75,7 +77,7 @@ def run_roulette_numpy(config, batch_size=1_000_000):
             win_mask = (outcomes == config.single_number_choice)
             win_payout = config.base_bet * 35
 
-        batch_wins = int(win_mask.sum())
+        batch_wins = int(win_mask.sum()) # sum array to get total number of hits
         wins += batch_wins
         total_payout += batch_wins * win_payout - (m - batch_wins) * config.base_bet
         done += m
